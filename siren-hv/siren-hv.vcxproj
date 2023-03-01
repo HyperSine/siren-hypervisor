@@ -1,0 +1,136 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{DE0C1508-2178-454B-9B30-A553BE770F60}</ProjectGuid>
+    <TemplateGuid>{dd38f7fc-d7bd-488b-9242-7d8754cde80d}</TemplateGuid>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
+    <Configuration>Debug</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <RootNamespace>siren_hv</RootNamespace>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <Driver_SpectreMitigation>false</Driver_SpectreMitigation>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <Driver_SpectreMitigation>false</Driver_SpectreMitigation>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <OutDir>$(SolutionDir)\bin\$(PlatformTarget)-$(ConfigurationName)\</OutDir>
+    <IntDir>$(SolutionDir)\obj\$(PlatformTarget)-$(ConfigurationName)\$(ProjectName)\</IntDir>
+    <IncludePath>$(VC_IncludePath);$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <OutDir>$(SolutionDir)\bin\$(PlatformTarget)-$(ConfigurationName)\</OutDir>
+    <IntDir>$(SolutionDir)\obj\$(PlatformTarget)-$(ConfigurationName)\$(ProjectName)\</IntDir>
+    <IncludePath>$(VC_IncludePath);$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <DriverSign>
+      <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
+    </DriverSign>
+    <ClCompile>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions);NTDDI_VERSION=0x0A00000B</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)\%(RelativeDir)</ObjectFileName>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <DriverSign>
+      <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
+    </DriverSign>
+    <ClCompile>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions);NTDDI_VERSION=0x0A00000B</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)\%(RelativeDir)</ObjectFileName>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="driver.cpp" />
+    <ClCompile Include="driver_irp_handler.cpp" />
+    <ClCompile Include="siren\hypervisors\vmx\dynamic_ept.cpp" />
+    <ClCompile Include="siren\lookaside_pool.cpp" />
+    <ClCompile Include="siren\hypervisors\vmx\hooking_database.cpp" />
+    <ClCompile Include="siren\spin_lock.cpp" />
+    <ClCompile Include="siren\memory_caching.cpp" />
+    <ClCompile Include="siren\x86\paging.cpp" />
+    <ClCompile Include="siren\siren_new.cpp" />
+    <ClCompile Include="siren\siren_global.cpp" />
+    <ClCompile Include="siren\microsoft_hv\tlfs.hypercalls.cpp" />
+    <ClCompile Include="siren\multiprocessor.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="driver.hpp" />
+    <ClInclude Include="driver_ioctl_code.hpp" />
+    <ClInclude Include="driver_irp_handler.hpp" />
+    <ClInclude Include="siren\lookaside_pool.hpp" />
+    <ClInclude Include="siren\hypervisors\vmx\guest_state.hpp" />
+    <ClInclude Include="siren\hypervisors\vmx\hooking_database.hpp" />
+    <ClInclude Include="siren\hypervisors\vmx\dynamic_ept.hpp" />
+    <ClInclude Include="siren\hypervisors\vmx\siren_hypercalls.hpp" />
+    <ClInclude Include="siren\siren_new.hpp" />
+    <ClInclude Include="siren\siren_memory.hpp" />
+    <ClInclude Include="siren\siren_global.hpp" />
+    <ClInclude Include="siren\x86\control_registers.hpp" />
+    <ClInclude Include="siren\x86\cpuid.hpp" />
+    <ClInclude Include="siren\x86\debug_registers.hpp" />
+    <ClInclude Include="siren\x86\flags_register.hpp" />
+    <ClInclude Include="siren\x86\interrupts_and_excpetions.hpp" />
+    <ClInclude Include="siren\memory_caching.hpp" />
+    <ClInclude Include="siren\x86\paging.hpp" />
+    <ClInclude Include="siren\x86\model_specific_registers.hpp" />
+    <ClInclude Include="siren\multiprocessor.hpp" />
+    <ClInclude Include="siren\x86\simd_registers.hpp" />
+    <ClInclude Include="siren\spin_lock.hpp" />
+    <ClInclude Include="siren\x86\segmentation.hpp" />
+    <ClInclude Include="siren\hypervisors\hypervisor.hpp" />
+    <ClInclude Include="siren\x86\intel_ept.hpp" />
+    <ClInclude Include="siren\x86\intel_vmx.hpp" />
+    <ClInclude Include="siren\microsoft_hv\tlfs.cpuid.hpp" />
+    <ClInclude Include="siren\microsoft_hv\tlfs.hpp" />
+    <ClInclude Include="siren\microsoft_hv\tlfs.hypercalls.hpp" />
+    <ClInclude Include="siren\microsoft_hv\tlfs.model_specific_registers.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="siren\hypervisors\vmx\siren_hypercalls.asm" />
+    <MASM Include="siren\x86\segmentation.asm" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
