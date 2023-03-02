@@ -1,8 +1,7 @@
 #pragma once
-#include "../siren_global.hpp"
+#include <stdint.h>
 
 namespace siren::x86 {
-
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
     //  |-> Chapter 6 Interrupt and Exception Handling
@@ -43,5 +42,4 @@ namespace siren::x86 {
         INTEL_RESERVED_31 = 31,
         // the laters are user defined interrupts
     };
-
 }

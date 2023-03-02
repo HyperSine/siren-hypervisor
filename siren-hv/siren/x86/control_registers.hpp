@@ -1,8 +1,8 @@
 #pragma once
-#include "../siren_global.hpp"
+#include <stdint.h>
+#include <intrin.h>
 
 namespace siren::x86 {
-
     // Defined in 
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
     //  |-> Chapter 2 System Architecture Overview
@@ -365,5 +365,4 @@ namespace siren::x86 {
         return __writecr8(cr8_value.storage);
     }
 #endif
-
 }

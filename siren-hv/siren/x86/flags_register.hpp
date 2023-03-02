@@ -1,5 +1,5 @@
 #pragma once
-#include "../siren_global.hpp"
+#include <stdint.h>
 
 namespace siren::x86 {
     struct eflags_t {

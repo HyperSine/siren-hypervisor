@@ -1,8 +1,10 @@
 #pragma once
-#include "../siren_global.hpp"
+#include <stddef.h>
+#include <stdint.h>
+#include <intrin.h>
+#include <type_traits>
 
 namespace siren::x86 {
-
     // Defined in
     // [*] Volume 3: System Programming Guide
     //  |-> Chapter 3 Protected-Mode Memory Management
@@ -21,9 +23,10 @@ namespace siren::x86 {
 
     static_assert(sizeof(segment_selector_t) == 2);
     static_assert(sizeof(segment_selector_t::storage) == sizeof(segment_selector_t::semantics));
+    static_assert(std::is_aggregate_v<segment_selector_t>);
 
-    using segment_base_32_t = uint32_t;
-    using segment_base_64_t = uint64_t;
+    using segment_base32_t = uint32_t;
+    using segment_base64_t = uint64_t;
 
     using segment_limit_t = uint32_t;
 
@@ -82,7 +85,7 @@ namespace siren::x86 {
 
                     [[nodiscard]]
                     constexpr auto base() const noexcept {
-                        return static_cast<segment_base_32_t>(base_low | base_high << 24u);
+                        return static_cast<segment_base32_t>(base_low | base_high << 24u);
                     }
 
                     [[nodiscard]]
@@ -114,7 +117,7 @@ namespace siren::x86 {
 
                     [[nodiscard]]
                     constexpr auto base() const noexcept {
-                        return static_cast<segment_base_32_t>(base_low | base_high << 24u);
+                        return static_cast<segment_base32_t>(base_low | base_high << 24u);
                     }
 
                     [[nodiscard]]
@@ -145,7 +148,7 @@ namespace siren::x86 {
     struct segment_descriptor_system_long_t {
         union {
             struct {
-                uint64_t area[2];
+                uint64_t data[2];
             } storage;
             union {
                 // Defined in
@@ -171,7 +174,7 @@ namespace siren::x86 {
 
                     [[nodiscard]]
                     constexpr auto base() const noexcept {
-                        return static_cast<segment_base_64_t>(base_low | base_middle << 24u | base_high << 32u);
+                        return static_cast<segment_base64_t>(base_low | base_middle << 24u | base_high << 32u);
                     }
 
                     [[nodiscard]]
@@ -208,7 +211,7 @@ namespace siren::x86 {
 
                     [[nodiscard]]
                     constexpr auto base() const noexcept {
-                        return static_cast<segment_base_64_t>(base_low | base_middle << 24u | base_high << 32u);
+                        return static_cast<segment_base64_t>(base_low | base_middle << 24u | base_high << 32u);
                     }
 
                     [[nodiscard]]
@@ -231,7 +234,7 @@ namespace siren::x86 {
     struct gate_descriptor_long_t {
         union {
             struct {
-                uint64_t area[2];
+                uint64_t data[2];
             } storage;
             union {
                 // Defined in
@@ -343,7 +346,7 @@ namespace siren::x86 {
 
                     [[nodiscard]]
                     constexpr auto base() const noexcept {
-                        return static_cast<segment_base_32_t>(base_low | base_high << 24u);
+                        return static_cast<segment_base32_t>(base_low | base_high << 24u);
                     }
 
                     [[nodiscard]]
@@ -375,7 +378,7 @@ namespace siren::x86 {
 
                     [[nodiscard]]
                     constexpr auto base() const noexcept {
-                        return static_cast<segment_base_32_t>(base_low | base_high << 24u);
+                        return static_cast<segment_base32_t>(base_low | base_high << 24u);
                     }
 
                     [[nodiscard]]
@@ -405,7 +408,7 @@ namespace siren::x86 {
 
                         [[nodiscard]]
                         constexpr auto base() const noexcept {
-                            return static_cast<segment_base_32_t>(base_low | base_high << 24u);
+                            return static_cast<segment_base32_t>(base_low | base_high << 24u);
                         }
 
                         [[nodiscard]]
@@ -440,7 +443,7 @@ namespace siren::x86 {
 
                         [[nodiscard]]
                         constexpr auto base() const noexcept {
-                            return static_cast<segment_base_32_t>(base_low | (base_high << 24u));
+                            return static_cast<segment_base32_t>(base_low | (base_high << 24u));
                         }
 
                         [[nodiscard]]
@@ -568,7 +571,7 @@ namespace siren::x86 {
         union {
             struct {
                 uint8_t padding[2];
-                uint8_t area[2 + 4];
+                uint8_t data[2 + 4];
             } storage;
             struct {
                 uint8_t padding[2];
@@ -594,7 +597,7 @@ namespace siren::x86 {
         union {
             struct {
                 uint8_t padding[6];
-                uint8_t area[2 + 8];
+                uint8_t data[2 + 8];
             } storage;
             struct {
                 uint8_t padding[6];
@@ -618,11 +621,11 @@ namespace siren::x86 {
     using idtr_t = pseudo_descriptor_legacy_t;
 #endif
 
-    template<segment_register_e _SegmentReg>
+    template<segment_register_e SegmentReg>
     [[nodiscard]]
     segment_selector_t read_segment_selector() noexcept;
 
-    template<segment_register_e _SegmentReg>
+    template<segment_register_e SegmentReg>
     [[nodiscard]]
     void write_segment_selector(segment_selector_t new_selector) noexcept;
 
@@ -636,23 +639,22 @@ namespace siren::x86 {
     [[nodiscard]]
     inline gdtr_t read_gdtr() noexcept {
         gdtr_t gdtr = {};
-        _sgdt(&gdtr.storage.area);
+        _sgdt(&gdtr.storage.data);
         return gdtr;
     }
 
     [[nodiscard]]
     inline idtr_t read_idtr() noexcept {
         idtr_t idtr = {};
-        __sidt(&idtr.storage.area);
+        __sidt(&idtr.storage.data);
         return idtr;
     }
 
     inline void write_gdtr(gdtr_t new_gdtr) noexcept {
-        return _lgdt(&new_gdtr.storage.area);
+        _lgdt(&new_gdtr.storage.data);
     }
 
     inline void write_idtr(gdtr_t new_idtr) noexcept {
-        return __lidt(&new_idtr.storage.area);
+        __lidt(&new_idtr.storage.data);
     }
-
 }

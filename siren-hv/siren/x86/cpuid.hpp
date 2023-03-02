@@ -1,5 +1,6 @@
 #pragma once
-#include "../siren_global.hpp"
+#include <stdint.h>
+#include <intrin.h>
 
 namespace siren::x86 {
     template<uint32_t... leafs>

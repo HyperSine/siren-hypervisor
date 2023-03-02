@@ -1,8 +1,10 @@
 #pragma once
-#include "../siren_global.hpp"
+#include "../literals.hpp"
 #include "paging.hpp"
 
 namespace siren::x86 {
+    using namespace ::siren::size_literals;
+
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
     //  |-> Chapter 28 VMX Support for Address Translation
@@ -35,7 +37,7 @@ namespace siren::x86 {
     static_assert(sizeof(ept_pml4_entry_t::storage) == 8);
     static_assert(sizeof(ept_pml4_entry_t::storage) == sizeof(ept_pml4_entry_t::semantics));
 
-    struct alignas(4_kb_size_v) ept_pml4_t {
+    struct alignas(4_KiB_size_v) ept_pml4_t {
         ept_pml4_entry_t entry[4_kb_size_v / sizeof(ept_pml4_entry_t)];
     };
 

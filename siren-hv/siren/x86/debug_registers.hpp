@@ -1,13 +1,12 @@
 #pragma once
-#include "../siren_global.hpp"
-#include "paging.hpp"
+#include "address_space.hpp"
 
 namespace siren::x86 {
     struct dr0_long_t {
         union {
             uint64_t storage;
             struct {
-                linear_address_64_t linear_address;
+                laddr64_t linear_address;
             } semantics;
         };
     };
@@ -19,7 +18,7 @@ namespace siren::x86 {
         union {
             uint32_t storage;
             struct {
-                linear_address32_t linear_address;
+                laddr32_t linear_address;
             } semantics;
         };
     };
@@ -37,7 +36,7 @@ namespace siren::x86 {
         union {
             uint64_t storage;
             struct {
-                linear_address_64_t linear_address;
+                laddr64_t linear_address;
             } semantics;
         };
     };
@@ -49,7 +48,7 @@ namespace siren::x86 {
         union {
             uint32_t storage;
             struct {
-                linear_address32_t linear_address;
+                laddr32_t linear_address;
             } semantics;
         };
     };
@@ -67,7 +66,7 @@ namespace siren::x86 {
         union {
             uint64_t storage;
             struct {
-                linear_address_64_t linear_address;
+                laddr64_t linear_address;
             } semantics;
         };
     };
@@ -79,7 +78,7 @@ namespace siren::x86 {
         union {
             uint32_t storage;
             struct {
-                linear_address32_t linear_address;
+                laddr32_t linear_address;
             } semantics;
         };
     };
@@ -97,7 +96,7 @@ namespace siren::x86 {
         union {
             uint64_t storage;
             struct {
-                linear_address_64_t linear_address;
+                laddr64_t linear_address;
             } semantics;
         };
     };
@@ -109,7 +108,7 @@ namespace siren::x86 {
         union {
             uint32_t storage;
             struct {
-                linear_address32_t linear_address;
+                laddr32_t linear_address;
             } semantics;
         };
     };
