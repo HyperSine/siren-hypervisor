@@ -1,14 +1,11 @@
-#include <wdm.h>
 #include "multiprocessor.hpp"
+#include <wdm.h>
 
 namespace siren::x86 {
-
-    [[nodiscard]]
     uint32_t active_cpu_count() noexcept {
         return KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     }
 
-    [[nodiscard]]
     uint32_t current_cpu_index() noexcept {
         return KeGetCurrentProcessorNumberEx(nullptr);
     }
@@ -17,7 +14,7 @@ namespace siren::x86 {
         return KeIpiGenericCall(fn, arg);
     }
 
-    uintptr_t run_for_cpu(uint32_t cpu_index, cpu_callback_t fn, uintptr_t arg) noexcept {
+    uintptr_t run_at_cpu(uint32_t cpu_index, cpu_callback_t fn, uintptr_t arg) noexcept {
         uintptr_t retval;
 
         NTSTATUS nt_status;
@@ -39,5 +36,4 @@ namespace siren::x86 {
 
         return retval;
     }
-
 }
