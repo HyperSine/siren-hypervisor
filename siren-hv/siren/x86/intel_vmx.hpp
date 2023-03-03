@@ -1,34 +1,38 @@
 #pragma once
-#include "../siren_global.hpp"
+#include <intrin.h>
 #include "paging.hpp"
+#include "../literals.hpp"
+#include "../utility.hpp"
 
 namespace siren::x86 {
+    using namespace ::siren::size_literals;
+
     // Defined in 
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
     //  |-> Chapter 24 Virtual Machine CONTROL Structures
     //    |-> 24.11 Software Use of the VMCS and Related Structures
     //      |-> 24.11.5 VMXON Region
-    struct alignas(4_kb_size_v) vmxon_region_t {
+    struct alignas(4_KiB_size_v) vmxon_region_t {
         uint32_t revision : 31;
         uint32_t reserved : 1;
         uint8_t used_by_cpu[1];     // ANYSIZE_ARRAY
     };
 
-    static_assert(alignof(vmxon_region_t) == 4_kb_size_v);
+    static_assert(alignof(vmxon_region_t) == 4_KiB_size_v);
 
     // Defined in 
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
     //  |-> Chapter 24 Virtual Machine CONTROL Structures
     //    |-> 24.2 Format of the VMCS Region
     //      |-> Table 24-1. Format of the VMCS Region
-    struct alignas(4_kb_size_v) vmcs_region_t {
+    struct alignas(4_KiB_size_v) vmcs_region_t {
         uint32_t revision : 31;
         uint32_t shadow_vmcs_indicator : 1;
         uint32_t vmx_abort_indicator;
         uint8_t used_by_cpu[1];     // ANYSIZE_ARRAY
     };
 
-    static_assert(alignof(vmcs_region_t) == 4_kb_size_v);
+    static_assert(alignof(vmcs_region_t) == 4_KiB_size_v);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -108,17 +112,11 @@ namespace siren::x86 {
     // vmcs field encoding 
     // ---------------------
 
-    enum class vmcs_field_access_e : uint32_t { FULL = 0, HIGH = 1 };
+    enum class vmcsf_access_e : uint32_t { FULL = 0, HIGH = 1 };
 
-    using vmcs_field_index_t = uint32_t;
+    enum class vmcsf_type_e : uint32_t { CONTROL = 0, INFORMATION = 1, GUEST = 2, HOST = 3 };
 
-    constexpr vmcs_field_index_t vmcs_field_index_max_v = (1u << 9u) - 1u;
-
-    enum class vmcs_field_type_e : uint32_t { CONTROL = 0, INFORMATION = 1, GUEST = 2, HOST = 3 };
-
-    enum class vmcs_field_width_e : uint32_t { WORD = 0, QWORD = 1, DWORD = 2, NATURAL = 3 };
-
-    enum class vmcs_field_name_e : uint32_t;
+    enum class vmcsf_width_e : uint32_t { WORD = 0, QWORD = 1, DWORD = 2, NATURAL = 3 };
 
     // Defined in 
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -126,7 +124,7 @@ namespace siren::x86 {
     //    |-> 24.11 Software Use of the VMCS and Related Structures
     //      |-> 24.11.2 VMREAD, VMWRITE, and Encodings of VMCS fields
     //        |-> Table 24-20. Structure of VMCS Component Encoding
-    struct vmcs_field_encoding_t {
+    struct vmcsf_encoding_t {
         union {
             uint32_t storage;
             struct {
@@ -140,355 +138,355 @@ namespace siren::x86 {
         };
 
         [[nodiscard]]
-        static constexpr auto from_storage(uint32_t value) noexcept {
-            // use std::bit_cast may be better, but that would cause false errors fired by VS intellisense 
-            return vmcs_field_encoding_t{
-                .semantics = { .access = value & 0x1u, .index = (value >> 1u) & 0x1ffu, .type = (value >> 10u) & 0x3u, .width = (value >> 13u) & 0x3u }
+        static constexpr vmcsf_encoding_t from(uint32_t value) noexcept {
+            return vmcsf_encoding_t{
+                .semantics = { 
+                    .access = range_bits_t<uint32_t, 0, 1>::from_integral(value).storage,
+                    .index  = range_bits_t<uint32_t, 1, 10>::from_integral(value).storage,
+                    .type   = range_bits_t<uint32_t, 10, 12>::from_integral(value).storage,
+                    .width  = range_bits_t<uint32_t, 13, 15>::from_integral(value).storage
+                }
             };
         }
 
         [[nodiscard]]
-        static constexpr auto from_semantics(vmcs_field_access_e access, vmcs_field_index_t index, vmcs_field_type_e type, vmcs_field_width_e width) noexcept {
-            // use std::bit_cast may be better, but that would cause false errors fired by VS intellisense 
-            return vmcs_field_encoding_t{
-                .storage = std::to_underlying(access) | (index & 0x1ff) << 1u | std::to_underlying(type) << 10u | std::to_underlying(width) << 13u
+        static constexpr vmcsf_encoding_t from(vmcsf_access_e access, uint32_t index, vmcsf_type_e type, vmcsf_width_e width) noexcept {
+            return vmcsf_encoding_t{
+                .storage = 
+                    range_bits_t<uint32_t, 0, 1>{ to_underlying(access) }.to_integral() |
+                    range_bits_t<uint32_t, 1, 10>{ index }.to_integral() |
+                    range_bits_t<uint32_t, 10, 12>{ to_underlying(type) }.to_integral() |
+                    range_bits_t<uint32_t, 13, 15>{ to_underlying(width) }.to_integral()
             };
-        }
-
-        [[nodiscard]]
-        static constexpr auto from_name(vmcs_field_name_e name) noexcept {
-            return from_storage(std::to_underlying(name));
         }
     };
 
-    static_assert(sizeof(vmcs_field_encoding_t) == 4);
-    static_assert(sizeof(vmcs_field_encoding_t::storage) == sizeof(vmcs_field_encoding_t::semantics));
+    static_assert(sizeof(vmcsf_encoding_t) == 4);
+    static_assert(sizeof(vmcsf_encoding_t::storage) == sizeof(vmcsf_encoding_t::semantics));
 
-#define SIREN_ENCODE_VMCS_FIELD(access_v, index_v, type_v, width_v) \
-    vmcs_field_encoding_t::from_semantics(vmcs_field_access_e::access_v, index_v, vmcs_field_type_e::type_v, vmcs_field_width_e::width_v).storage
+#define SIREN_ENCODE_VMCS_FIELD(A, I, T, W) vmcsf_encoding_t::from(vmcsf_access_e::A, I, vmcsf_type_e::T, vmcsf_width_e::W).storage
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
     //  |-> Appendix B Field Encoding in VMCS
-    enum class vmcs_field_name_e : uint32_t {
-        // -------------------------------
-        //   B.1.1 16-Bit CONTROL Fields
-        // -------------------------------
 
-        CTRL_VIRTUAL_PROCESSOR_IDENTIFIER            = SIREN_ENCODE_VMCS_FIELD(FULL, 0, CONTROL, WORD),
-        CTRL_POSTED_INTERRUPT_NOTIFICATION_VECTOR    = SIREN_ENCODE_VMCS_FIELD(FULL, 1, CONTROL, WORD),
-        CTRL_EPTP_INDEX                              = SIREN_ENCODE_VMCS_FIELD(FULL, 2, CONTROL, WORD),
-        CTRL_HLAT_PREFIX_SIZE                        = SIREN_ENCODE_VMCS_FIELD(FULL, 3, CONTROL, WORD),
+    // -------------------------------
+    //   B.1.1 16-Bit CONTROL Fields
+    // -------------------------------
 
-        // -----------------------------------
-        //   B.1.2 16-Bit GUEST-State Fields
-        // -----------------------------------
+    constexpr uint32_t VMCSF_CTRL_VPID                              = SIREN_ENCODE_VMCS_FIELD(FULL, 0, CONTROL, WORD);
+    constexpr uint32_t VMCSF_CTRL_POSTED_INTR_NOTIFICATION_VECTOR   = SIREN_ENCODE_VMCS_FIELD(FULL, 1, CONTROL, WORD);
+    constexpr uint32_t VMCSF_CTRL_EPTP_INDEX                        = SIREN_ENCODE_VMCS_FIELD(FULL, 2, CONTROL, WORD);
+    constexpr uint32_t VMCSF_CTRL_HLAT_PREFIX_SIZE                  = SIREN_ENCODE_VMCS_FIELD(FULL, 3, CONTROL, WORD);
 
-        GUEST_ES_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 0, GUEST, WORD),
-        GUEST_CS_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 1, GUEST, WORD),
-        GUEST_SS_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 2, GUEST, WORD),
-        GUEST_DS_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 3, GUEST, WORD),
-        GUEST_FS_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 4, GUEST, WORD),
-        GUEST_GS_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 5, GUEST, WORD),
-        GUEST_LDTR_SELECTOR     = SIREN_ENCODE_VMCS_FIELD(FULL, 6, GUEST, WORD),
-        GUEST_TR_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 7, GUEST, WORD),
-        GUEST_INTERRUPT_STATUS  = SIREN_ENCODE_VMCS_FIELD(FULL, 8, GUEST, WORD),
-        GUEST_PML_INDEX         = SIREN_ENCODE_VMCS_FIELD(FULL, 9, GUEST, WORD),
+    // -----------------------------------
+    //   B.1.2 16-Bit GUEST-State Fields
+    // -----------------------------------
 
-        // ----------------------------------
-        //   B.1.3 16-Bit HOST-State Fields
-        // ----------------------------------
+    constexpr uint32_t VMCSF_GUEST_ES_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 0, GUEST, WORD);
+    constexpr uint32_t VMCSF_GUEST_CS_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 1, GUEST, WORD);
+    constexpr uint32_t VMCSF_GUEST_SS_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 2, GUEST, WORD);
+    constexpr uint32_t VMCSF_GUEST_DS_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 3, GUEST, WORD);
+    constexpr uint32_t VMCSF_GUEST_FS_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 4, GUEST, WORD);
+    constexpr uint32_t VMCSF_GUEST_GS_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 5, GUEST, WORD);
+    constexpr uint32_t VMCSF_GUEST_LDTR_SELECTOR     = SIREN_ENCODE_VMCS_FIELD(FULL, 6, GUEST, WORD);
+    constexpr uint32_t VMCSF_GUEST_TR_SELECTOR       = SIREN_ENCODE_VMCS_FIELD(FULL, 7, GUEST, WORD);
+    constexpr uint32_t VMCSF_GUEST_INTERRUPT_STATUS  = SIREN_ENCODE_VMCS_FIELD(FULL, 8, GUEST, WORD);
+    constexpr uint32_t VMCSF_GUEST_PML_INDEX         = SIREN_ENCODE_VMCS_FIELD(FULL, 9, GUEST, WORD);
 
-        HOST_ES_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 0, HOST, WORD),
-        HOST_CS_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 1, HOST, WORD),
-        HOST_SS_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 2, HOST, WORD),
-        HOST_DS_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 3, HOST, WORD),
-        HOST_FS_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 4, HOST, WORD),
-        HOST_GS_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 5, HOST, WORD),
-        HOST_TR_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 6, HOST, WORD),
+    // ----------------------------------
+    //   B.1.3 16-Bit HOST-State Fields
+    // ----------------------------------
 
-        // -------------------------------
-        //   B.2.1 64-Bit CONTROL Fields
-        // -------------------------------
+    constexpr uint32_t VMCSF_HOST_ES_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 0, HOST, WORD);
+    constexpr uint32_t VMCSF_HOST_CS_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 1, HOST, WORD);
+    constexpr uint32_t VMCSF_HOST_SS_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 2, HOST, WORD);
+    constexpr uint32_t VMCSF_HOST_DS_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 3, HOST, WORD);
+    constexpr uint32_t VMCSF_HOST_FS_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 4, HOST, WORD);
+    constexpr uint32_t VMCSF_HOST_GS_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 5, HOST, WORD);
+    constexpr uint32_t VMCSF_HOST_TR_SELECTOR = SIREN_ENCODE_VMCS_FIELD(FULL, 6, HOST, WORD);
 
-        CTRL_IO_BITMAP_A_ADDRESS                                 = SIREN_ENCODE_VMCS_FIELD(FULL, 0, CONTROL, QWORD),
-        CTRL_IO_BITMAP_A_ADDRESS_HIGH                            = SIREN_ENCODE_VMCS_FIELD(HIGH, 0, CONTROL, QWORD),
-        CTRL_IO_BITMAP_B_ADDRESS                                 = SIREN_ENCODE_VMCS_FIELD(FULL, 1, CONTROL, QWORD),
-        CTRL_IO_BITMAP_B_ADDRESS_HIGH                            = SIREN_ENCODE_VMCS_FIELD(HIGH, 1, CONTROL, QWORD),
-        CTRL_MSR_BITMAP_ADDRESS                                  = SIREN_ENCODE_VMCS_FIELD(FULL, 2, CONTROL, QWORD),
-        CTRL_MSR_BITMAP_ADDRESS_HIGH                             = SIREN_ENCODE_VMCS_FIELD(HIGH, 2, CONTROL, QWORD),
-        CTRL_VMEXIT_MSR_STORE_ADDRESS                            = SIREN_ENCODE_VMCS_FIELD(FULL, 3, CONTROL, QWORD),
-        CTRL_VMEXIT_MSR_STORE_ADDRESS_HIGH                       = SIREN_ENCODE_VMCS_FIELD(HIGH, 3, CONTROL, QWORD),
-        CTRL_VMEXIT_MSR_LOAD_ADDRESS                             = SIREN_ENCODE_VMCS_FIELD(FULL, 4, CONTROL, QWORD),
-        CTRL_VMEXIT_MSR_LOAD_ADDRESS_HIGH                        = SIREN_ENCODE_VMCS_FIELD(HIGH, 4, CONTROL, QWORD),
-        CTRL_VMENTRY_MSR_LOAD_ADDRESS                            = SIREN_ENCODE_VMCS_FIELD(FULL, 5, CONTROL, QWORD),
-        CTRL_VMENTRY_MSR_LOAD_ADDRESS_HIGH                       = SIREN_ENCODE_VMCS_FIELD(HIGH, 5, CONTROL, QWORD),
-        CTRL_EXECUTIVE_VMCS_POINTER                              = SIREN_ENCODE_VMCS_FIELD(FULL, 6, CONTROL, QWORD),
-        CTRL_EXECUTIVE_VMCS_POINTER_HIGH                         = SIREN_ENCODE_VMCS_FIELD(HIGH, 6, CONTROL, QWORD),
-        CTRL_PML_ADDRESS                                         = SIREN_ENCODE_VMCS_FIELD(FULL, 7, CONTROL, QWORD),
-        CTRL_PML_ADDRESS_HIGH                                    = SIREN_ENCODE_VMCS_FIELD(HIGH, 7, CONTROL, QWORD),
-        CTRL_TSC_OFFSET                                          = SIREN_ENCODE_VMCS_FIELD(FULL, 8, CONTROL, QWORD),
-        CTRL_TSC_OFFSET_HIGH                                     = SIREN_ENCODE_VMCS_FIELD(HIGH, 8, CONTROL, QWORD),
-        CTRL_VIRTUAL_APIC_ADDRESS                                = SIREN_ENCODE_VMCS_FIELD(FULL, 9, CONTROL, QWORD),
-        CTRL_VIRTUAL_APIC_ADDRESS_HIGH                           = SIREN_ENCODE_VMCS_FIELD(HIGH, 9, CONTROL, QWORD),
-        CTRL_APIC_ACCESS_ADDRESS                                 = SIREN_ENCODE_VMCS_FIELD(FULL, 10, CONTROL, QWORD),
-        CTRL_APIC_ACCESS_ADDRESS_HIGH                            = SIREN_ENCODE_VMCS_FIELD(HIGH, 10, CONTROL, QWORD),
-        CTRL_POSTED_INTERRUPT_DESCRIPTOR_ADDRESS                 = SIREN_ENCODE_VMCS_FIELD(FULL, 11, CONTROL, QWORD),
-        CTRL_POSTED_INTERRUPT_DESCRIPTOR_ADDRESS_HIGH            = SIREN_ENCODE_VMCS_FIELD(HIGH, 11, CONTROL, QWORD),
-        CTRL_VM_FUNCTION_CONTROLS                                = SIREN_ENCODE_VMCS_FIELD(FULL, 12, CONTROL, QWORD),
-        CTRL_VM_FUNCTION_CONTROLS_HIGH                           = SIREN_ENCODE_VMCS_FIELD(HIGH, 12, CONTROL, QWORD),
-        CTRL_EPT_POINTER                                         = SIREN_ENCODE_VMCS_FIELD(FULL, 13, CONTROL, QWORD),
-        CTRL_EPT_POINTER_HIGH                                    = SIREN_ENCODE_VMCS_FIELD(HIGH, 13, CONTROL, QWORD),
-        CTRL_EOI_EXIT0_BITMAP                                    = SIREN_ENCODE_VMCS_FIELD(FULL, 14, CONTROL, QWORD),
-        CTRL_EOI_EXIT0_BITMAP_HIGH                               = SIREN_ENCODE_VMCS_FIELD(HIGH, 14, CONTROL, QWORD),
-        CTRL_EOI_EXIT1_BITMAP                                    = SIREN_ENCODE_VMCS_FIELD(FULL, 15, CONTROL, QWORD),
-        CTRL_EOI_EXIT1_BITMAP_HIGH                               = SIREN_ENCODE_VMCS_FIELD(HIGH, 15, CONTROL, QWORD),
-        CTRL_EOI_EXIT2_BITMAP                                    = SIREN_ENCODE_VMCS_FIELD(FULL, 16, CONTROL, QWORD),
-        CTRL_EOI_EXIT2_BITMAP_HIGH                               = SIREN_ENCODE_VMCS_FIELD(HIGH, 16, CONTROL, QWORD),
-        CTRL_EOI_EXIT3_BITMAP                                    = SIREN_ENCODE_VMCS_FIELD(FULL, 17, CONTROL, QWORD),
-        CTRL_EOI_EXIT3_BITMAP_HIGH                               = SIREN_ENCODE_VMCS_FIELD(HIGH, 17, CONTROL, QWORD),
-        CTRL_EPTP_LIST_ADDRESS                                   = SIREN_ENCODE_VMCS_FIELD(FULL, 18, CONTROL, QWORD),
-        CTRL_EPTP_LIST_ADDRESS_HIGH                              = SIREN_ENCODE_VMCS_FIELD(HIGH, 18, CONTROL, QWORD),
-        CTRL_VMREAD_BITMAP_ADDRESS                               = SIREN_ENCODE_VMCS_FIELD(FULL, 19, CONTROL, QWORD),
-        CTRL_VMREAD_BITMAP_ADDRESS_HIGH                          = SIREN_ENCODE_VMCS_FIELD(HIGH, 19, CONTROL, QWORD),
-        CTRL_VMWRITE_BITMAP_ADDRESS                              = SIREN_ENCODE_VMCS_FIELD(FULL, 20, CONTROL, QWORD),
-        CTRL_VMWRITE_BITMAP_ADDRESS_HIGH                         = SIREN_ENCODE_VMCS_FIELD(HIGH, 20, CONTROL, QWORD),
-        CTRL_VIRTUALIZATION_EXCEPTION_INFO_ADDRESS               = SIREN_ENCODE_VMCS_FIELD(FULL, 21, CONTROL, QWORD),
-        CTRL_VIRTUALIZATION_EXCEPTION_INFO_ADDRESS_HIGH          = SIREN_ENCODE_VMCS_FIELD(HIGH, 21, CONTROL, QWORD),
-        CTRL_XSS_EXITING_BITMAP                                  = SIREN_ENCODE_VMCS_FIELD(FULL, 22, CONTROL, QWORD),
-        CTRL_XSS_EXITING_BITMAP_HIGH                             = SIREN_ENCODE_VMCS_FIELD(HIGH, 22, CONTROL, QWORD),
-        CTRL_ENCLS_EXITING_BITMAP                                = SIREN_ENCODE_VMCS_FIELD(FULL, 23, CONTROL, QWORD),
-        CTRL_ENCLS_EXITING_BITMAP_HIGH                           = SIREN_ENCODE_VMCS_FIELD(HIGH, 23, CONTROL, QWORD),
-        CTRL_SPPTP                                               = SIREN_ENCODE_VMCS_FIELD(FULL, 24, CONTROL, QWORD),
-        CTRL_SPPTP_HIGH                                          = SIREN_ENCODE_VMCS_FIELD(HIGH, 24, CONTROL, QWORD),
-        CTRL_TSC_MULTIPLIER                                      = SIREN_ENCODE_VMCS_FIELD(FULL, 25, CONTROL, QWORD),
-        CTRL_TSC_MULTIPLIER_HIGH                                 = SIREN_ENCODE_VMCS_FIELD(HIGH, 25, CONTROL, QWORD),
-        CTRL_TERTIARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS      = SIREN_ENCODE_VMCS_FIELD(FULL, 26, CONTROL, QWORD),
-        CTRL_TERTIARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS_HIGH = SIREN_ENCODE_VMCS_FIELD(HIGH, 26, CONTROL, QWORD),
-        CTRL_ENCLV_EXITING_BITMAP                                = SIREN_ENCODE_VMCS_FIELD(FULL, 27, CONTROL, QWORD),
-        CTRL_ENCLV_EXITING_BITMAP_HIGH                           = SIREN_ENCODE_VMCS_FIELD(HIGH, 27, CONTROL, QWORD),
-        CTRL_PCONFIG_EXITING_BITMAP                              = SIREN_ENCODE_VMCS_FIELD(FULL, 31, CONTROL, QWORD),
-        CTRL_PCONFIG_EXITING_BITMAP_HIGH                         = SIREN_ENCODE_VMCS_FIELD(HIGH, 31, CONTROL, QWORD),
-        CTRL_HLATP                                               = SIREN_ENCODE_VMCS_FIELD(FULL, 32, CONTROL, QWORD),
-        CTRL_HLATP_HIGH                                          = SIREN_ENCODE_VMCS_FIELD(HIGH, 32, CONTROL, QWORD),
-        CTRL_SECONDARY_VMEXIT_CONTROLS                           = SIREN_ENCODE_VMCS_FIELD(FULL, 34, CONTROL, QWORD),
-        CTRL_SECONDARY_VMEXIT_CONTROLS_HIGH                      = SIREN_ENCODE_VMCS_FIELD(HIGH, 34, CONTROL, QWORD),
+    // -------------------------------
+    //   B.2.1 64-Bit CONTROL Fields
+    // -------------------------------
 
-        // --------------------------------------
-        //   B.2.2 64-Bit Read-Only Data Fields
-        // --------------------------------------
-        INFO_GUEST_PHYSICAL_ADDRESS      = SIREN_ENCODE_VMCS_FIELD(FULL, 0, INFORMATION, QWORD),
-        INFO_GUEST_PHYSICAL_ADDRESS_HIGH = SIREN_ENCODE_VMCS_FIELD(FULL, 0, INFORMATION, QWORD),
+    constexpr uint32_t VMCSF_CTRL_IO_BITMAP_A_ADDRESS                                 = SIREN_ENCODE_VMCS_FIELD(FULL, 0, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_IO_BITMAP_A_ADDRESS_HIGH                            = SIREN_ENCODE_VMCS_FIELD(HIGH, 0, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_IO_BITMAP_B_ADDRESS                                 = SIREN_ENCODE_VMCS_FIELD(FULL, 1, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_IO_BITMAP_B_ADDRESS_HIGH                            = SIREN_ENCODE_VMCS_FIELD(HIGH, 1, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_MSR_BITMAP_ADDRESS                                  = SIREN_ENCODE_VMCS_FIELD(FULL, 2, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_MSR_BITMAP_ADDRESS_HIGH                             = SIREN_ENCODE_VMCS_FIELD(HIGH, 2, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VMEXIT_MSR_STORE_ADDRESS                            = SIREN_ENCODE_VMCS_FIELD(FULL, 3, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VMEXIT_MSR_STORE_ADDRESS_HIGH                       = SIREN_ENCODE_VMCS_FIELD(HIGH, 3, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VMEXIT_MSR_LOAD_ADDRESS                             = SIREN_ENCODE_VMCS_FIELD(FULL, 4, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VMEXIT_MSR_LOAD_ADDRESS_HIGH                        = SIREN_ENCODE_VMCS_FIELD(HIGH, 4, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VMENTRY_MSR_LOAD_ADDRESS                            = SIREN_ENCODE_VMCS_FIELD(FULL, 5, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VMENTRY_MSR_LOAD_ADDRESS_HIGH                       = SIREN_ENCODE_VMCS_FIELD(HIGH, 5, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EXECUTIVE_VMCS_POINTER                              = SIREN_ENCODE_VMCS_FIELD(FULL, 6, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EXECUTIVE_VMCS_POINTER_HIGH                         = SIREN_ENCODE_VMCS_FIELD(HIGH, 6, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_PML_ADDRESS                                         = SIREN_ENCODE_VMCS_FIELD(FULL, 7, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_PML_ADDRESS_HIGH                                    = SIREN_ENCODE_VMCS_FIELD(HIGH, 7, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_TSC_OFFSET                                          = SIREN_ENCODE_VMCS_FIELD(FULL, 8, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_TSC_OFFSET_HIGH                                     = SIREN_ENCODE_VMCS_FIELD(HIGH, 8, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VIRTUAL_APIC_ADDRESS                                = SIREN_ENCODE_VMCS_FIELD(FULL, 9, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VIRTUAL_APIC_ADDRESS_HIGH                           = SIREN_ENCODE_VMCS_FIELD(HIGH, 9, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_APIC_ACCESS_ADDRESS                                 = SIREN_ENCODE_VMCS_FIELD(FULL, 10, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_APIC_ACCESS_ADDRESS_HIGH                            = SIREN_ENCODE_VMCS_FIELD(HIGH, 10, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_POSTED_INTERRUPT_DESCRIPTOR_ADDRESS                 = SIREN_ENCODE_VMCS_FIELD(FULL, 11, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_POSTED_INTERRUPT_DESCRIPTOR_ADDRESS_HIGH            = SIREN_ENCODE_VMCS_FIELD(HIGH, 11, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VM_FUNCTION_CONTROLS                                = SIREN_ENCODE_VMCS_FIELD(FULL, 12, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VM_FUNCTION_CONTROLS_HIGH                           = SIREN_ENCODE_VMCS_FIELD(HIGH, 12, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EPT_POINTER                                         = SIREN_ENCODE_VMCS_FIELD(FULL, 13, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EPT_POINTER_HIGH                                    = SIREN_ENCODE_VMCS_FIELD(HIGH, 13, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EOI_EXIT0_BITMAP                                    = SIREN_ENCODE_VMCS_FIELD(FULL, 14, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EOI_EXIT0_BITMAP_HIGH                               = SIREN_ENCODE_VMCS_FIELD(HIGH, 14, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EOI_EXIT1_BITMAP                                    = SIREN_ENCODE_VMCS_FIELD(FULL, 15, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EOI_EXIT1_BITMAP_HIGH                               = SIREN_ENCODE_VMCS_FIELD(HIGH, 15, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EOI_EXIT2_BITMAP                                    = SIREN_ENCODE_VMCS_FIELD(FULL, 16, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EOI_EXIT2_BITMAP_HIGH                               = SIREN_ENCODE_VMCS_FIELD(HIGH, 16, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EOI_EXIT3_BITMAP                                    = SIREN_ENCODE_VMCS_FIELD(FULL, 17, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EOI_EXIT3_BITMAP_HIGH                               = SIREN_ENCODE_VMCS_FIELD(HIGH, 17, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EPTP_LIST_ADDRESS                                   = SIREN_ENCODE_VMCS_FIELD(FULL, 18, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_EPTP_LIST_ADDRESS_HIGH                              = SIREN_ENCODE_VMCS_FIELD(HIGH, 18, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VMREAD_BITMAP_ADDRESS                               = SIREN_ENCODE_VMCS_FIELD(FULL, 19, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VMREAD_BITMAP_ADDRESS_HIGH                          = SIREN_ENCODE_VMCS_FIELD(HIGH, 19, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VMWRITE_BITMAP_ADDRESS                              = SIREN_ENCODE_VMCS_FIELD(FULL, 20, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VMWRITE_BITMAP_ADDRESS_HIGH                         = SIREN_ENCODE_VMCS_FIELD(HIGH, 20, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VIRTUALIZATION_EXCEPTION_INFO_ADDRESS               = SIREN_ENCODE_VMCS_FIELD(FULL, 21, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_VIRTUALIZATION_EXCEPTION_INFO_ADDRESS_HIGH          = SIREN_ENCODE_VMCS_FIELD(HIGH, 21, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_XSS_EXITING_BITMAP                                  = SIREN_ENCODE_VMCS_FIELD(FULL, 22, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_XSS_EXITING_BITMAP_HIGH                             = SIREN_ENCODE_VMCS_FIELD(HIGH, 22, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_ENCLS_EXITING_BITMAP                                = SIREN_ENCODE_VMCS_FIELD(FULL, 23, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_ENCLS_EXITING_BITMAP_HIGH                           = SIREN_ENCODE_VMCS_FIELD(HIGH, 23, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_SPPTP                                               = SIREN_ENCODE_VMCS_FIELD(FULL, 24, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_SPPTP_HIGH                                          = SIREN_ENCODE_VMCS_FIELD(HIGH, 24, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_TSC_MULTIPLIER                                      = SIREN_ENCODE_VMCS_FIELD(FULL, 25, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_TSC_MULTIPLIER_HIGH                                 = SIREN_ENCODE_VMCS_FIELD(HIGH, 25, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_TERTIARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS      = SIREN_ENCODE_VMCS_FIELD(FULL, 26, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_TERTIARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS_HIGH = SIREN_ENCODE_VMCS_FIELD(HIGH, 26, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_ENCLV_EXITING_BITMAP                                = SIREN_ENCODE_VMCS_FIELD(FULL, 27, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_ENCLV_EXITING_BITMAP_HIGH                           = SIREN_ENCODE_VMCS_FIELD(HIGH, 27, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_PCONFIG_EXITING_BITMAP                              = SIREN_ENCODE_VMCS_FIELD(FULL, 31, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_PCONFIG_EXITING_BITMAP_HIGH                         = SIREN_ENCODE_VMCS_FIELD(HIGH, 31, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_HLATP                                               = SIREN_ENCODE_VMCS_FIELD(FULL, 32, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_HLATP_HIGH                                          = SIREN_ENCODE_VMCS_FIELD(HIGH, 32, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_SECONDARY_VMEXIT_CONTROLS                           = SIREN_ENCODE_VMCS_FIELD(FULL, 34, CONTROL, QWORD);
+    constexpr uint32_t VMCSF_CTRL_SECONDARY_VMEXIT_CONTROLS_HIGH                      = SIREN_ENCODE_VMCS_FIELD(HIGH, 34, CONTROL, QWORD);
 
-        // -----------------------------------
-        //   B.2.3 64-Bit GUEST-State Fields
-        // -----------------------------------
+    // --------------------------------------
+    //   B.2.2 64-Bit Read-Only Data Fields
+    // --------------------------------------
+    constexpr uint32_t VMCSF_INFO_GUEST_PHYSICAL_ADDRESS      = SIREN_ENCODE_VMCS_FIELD(FULL, 0, INFORMATION, QWORD);
+    constexpr uint32_t VMCSF_INFO_GUEST_PHYSICAL_ADDRESS_HIGH = SIREN_ENCODE_VMCS_FIELD(FULL, 0, INFORMATION, QWORD);
 
-        GUEST_VMCS_LINK_POINTER             = SIREN_ENCODE_VMCS_FIELD(FULL, 0, GUEST, QWORD),
-        GUEST_VMCS_LINK_POINTER_HIGH        = SIREN_ENCODE_VMCS_FIELD(HIGH, 0, GUEST, QWORD),
-        GUEST_IA32_DEBUGCTL                 = SIREN_ENCODE_VMCS_FIELD(FULL, 1, GUEST, QWORD),
-        GUEST_IA32_DEBUGCTL_HIGH            = SIREN_ENCODE_VMCS_FIELD(HIGH, 1, GUEST, QWORD),
-        GUEST_IA32_PAT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 2, GUEST, QWORD),
-        GUEST_IA32_PAT_HIGH                 = SIREN_ENCODE_VMCS_FIELD(HIGH, 2, GUEST, QWORD),
-        GUEST_IA32_EFER                     = SIREN_ENCODE_VMCS_FIELD(FULL, 3, GUEST, QWORD),
-        GUEST_IA32_EFER_HIGH                = SIREN_ENCODE_VMCS_FIELD(HIGH, 3, GUEST, QWORD),
-        GUEST_IA32_PERF_GLOBAL_CTRL         = SIREN_ENCODE_VMCS_FIELD(FULL, 4, GUEST, QWORD),
-        GUEST_IA32_PERF_GLOBAL_CTRL_HIGH    = SIREN_ENCODE_VMCS_FIELD(HIGH, 4, GUEST, QWORD),
-        GUEST_PDPTE0                        = SIREN_ENCODE_VMCS_FIELD(FULL, 5, GUEST, QWORD),
-        GUEST_PDPTE0_HIGH                   = SIREN_ENCODE_VMCS_FIELD(HIGH, 5, GUEST, QWORD),
-        GUEST_PDPTE1                        = SIREN_ENCODE_VMCS_FIELD(FULL, 6, GUEST, QWORD),
-        GUEST_PDPTE1_HIGH                   = SIREN_ENCODE_VMCS_FIELD(HIGH, 6, GUEST, QWORD),
-        GUEST_PDPTE2                        = SIREN_ENCODE_VMCS_FIELD(FULL, 7, GUEST, QWORD),
-        GUEST_PDPTE2_HIGH                   = SIREN_ENCODE_VMCS_FIELD(HIGH, 7, GUEST, QWORD),
-        GUEST_PDPTE3                        = SIREN_ENCODE_VMCS_FIELD(FULL, 8, GUEST, QWORD),
-        GUEST_PDPTE3_HIGH                   = SIREN_ENCODE_VMCS_FIELD(HIGH, 8, GUEST, QWORD),
-        GUEST_IA32_BNDCFGS                  = SIREN_ENCODE_VMCS_FIELD(FULL, 9, GUEST, QWORD),
-        GUEST_IA32_BNDCFGS_HIGH             = SIREN_ENCODE_VMCS_FIELD(HIGH, 9, GUEST, QWORD),
-        GUEST_IA32_RTIT_CTL                 = SIREN_ENCODE_VMCS_FIELD(FULL, 10, GUEST, QWORD),
-        GUEST_IA32_RTIT_CTL_HIGH            = SIREN_ENCODE_VMCS_FIELD(HIGH, 10, GUEST, QWORD),
-        GUEST_IA32_LBR_CTL                  = SIREN_ENCODE_VMCS_FIELD(FULL, 11, GUEST, QWORD),
-        GUEST_IA32_LBR_CTL_HIGH             = SIREN_ENCODE_VMCS_FIELD(HIGH, 11, GUEST, QWORD),
-        GUEST_IA32_PKRS                     = SIREN_ENCODE_VMCS_FIELD(FULL, 12, GUEST, QWORD),
-        GUEST_IA32_PKRS_HIGH                = SIREN_ENCODE_VMCS_FIELD(HIGH, 12, GUEST, QWORD),
+    // -----------------------------------
+    //   B.2.3 64-Bit GUEST-State Fields
+    // -----------------------------------
 
-        // ----------------------------------
-        //   B.2.4 64-Bit HOST-State Fields
-        // ----------------------------------
+    constexpr uint32_t VMCSF_GUEST_VMCS_LINK_POINTER             = SIREN_ENCODE_VMCS_FIELD(FULL, 0, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_VMCS_LINK_POINTER_HIGH        = SIREN_ENCODE_VMCS_FIELD(HIGH, 0, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_DEBUGCTL                 = SIREN_ENCODE_VMCS_FIELD(FULL, 1, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_DEBUGCTL_HIGH            = SIREN_ENCODE_VMCS_FIELD(HIGH, 1, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_PAT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 2, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_PAT_HIGH                 = SIREN_ENCODE_VMCS_FIELD(HIGH, 2, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_EFER                     = SIREN_ENCODE_VMCS_FIELD(FULL, 3, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_EFER_HIGH                = SIREN_ENCODE_VMCS_FIELD(HIGH, 3, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_PERF_GLOBAL_CTRL         = SIREN_ENCODE_VMCS_FIELD(FULL, 4, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_PERF_GLOBAL_CTRL_HIGH    = SIREN_ENCODE_VMCS_FIELD(HIGH, 4, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_PDPTE0                        = SIREN_ENCODE_VMCS_FIELD(FULL, 5, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_PDPTE0_HIGH                   = SIREN_ENCODE_VMCS_FIELD(HIGH, 5, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_PDPTE1                        = SIREN_ENCODE_VMCS_FIELD(FULL, 6, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_PDPTE1_HIGH                   = SIREN_ENCODE_VMCS_FIELD(HIGH, 6, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_PDPTE2                        = SIREN_ENCODE_VMCS_FIELD(FULL, 7, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_PDPTE2_HIGH                   = SIREN_ENCODE_VMCS_FIELD(HIGH, 7, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_PDPTE3                        = SIREN_ENCODE_VMCS_FIELD(FULL, 8, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_PDPTE3_HIGH                   = SIREN_ENCODE_VMCS_FIELD(HIGH, 8, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_BNDCFGS                  = SIREN_ENCODE_VMCS_FIELD(FULL, 9, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_BNDCFGS_HIGH             = SIREN_ENCODE_VMCS_FIELD(HIGH, 9, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_RTIT_CTL                 = SIREN_ENCODE_VMCS_FIELD(FULL, 10, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_RTIT_CTL_HIGH            = SIREN_ENCODE_VMCS_FIELD(HIGH, 10, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_LBR_CTL                  = SIREN_ENCODE_VMCS_FIELD(FULL, 11, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_LBR_CTL_HIGH             = SIREN_ENCODE_VMCS_FIELD(HIGH, 11, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_PKRS                     = SIREN_ENCODE_VMCS_FIELD(FULL, 12, GUEST, QWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_PKRS_HIGH                = SIREN_ENCODE_VMCS_FIELD(HIGH, 12, GUEST, QWORD);
 
-        HOST_IA32_PAT                   = SIREN_ENCODE_VMCS_FIELD(FULL, 0, HOST, QWORD),
-        HOST_IA32_PAT_HIGH              = SIREN_ENCODE_VMCS_FIELD(HIGH, 0, HOST, QWORD),
-        HOST_IA32_EFER                  = SIREN_ENCODE_VMCS_FIELD(FULL, 1, HOST, QWORD),
-        HOST_IA32_EFER_HIGH             = SIREN_ENCODE_VMCS_FIELD(HIGH, 1, HOST, QWORD),
-        HOST_IA32_PERF_GLOBAL_CTRL      = SIREN_ENCODE_VMCS_FIELD(FULL, 2, HOST, QWORD),
-        HOST_IA32_PERF_GLOBAL_CTRL_HIGH = SIREN_ENCODE_VMCS_FIELD(HIGH, 2, HOST, QWORD),
-        HOST_IA32_PKRS                  = SIREN_ENCODE_VMCS_FIELD(FULL, 3, HOST, QWORD),
-        HOST_IA32_PKRS_HIGH             = SIREN_ENCODE_VMCS_FIELD(HIGH, 3, HOST, QWORD),
+    // ----------------------------------
+    //   B.2.4 64-Bit HOST-State Fields
+    // ----------------------------------
 
-        // -------------------------------
-        //   B.3.1 32-Bit CONTROL Fields
-        // -------------------------------
+    constexpr uint32_t VMCSF_HOST_IA32_PAT                   = SIREN_ENCODE_VMCS_FIELD(FULL, 0, HOST, QWORD);
+    constexpr uint32_t VMCSF_HOST_IA32_PAT_HIGH              = SIREN_ENCODE_VMCS_FIELD(HIGH, 0, HOST, QWORD);
+    constexpr uint32_t VMCSF_HOST_IA32_EFER                  = SIREN_ENCODE_VMCS_FIELD(FULL, 1, HOST, QWORD);
+    constexpr uint32_t VMCSF_HOST_IA32_EFER_HIGH             = SIREN_ENCODE_VMCS_FIELD(HIGH, 1, HOST, QWORD);
+    constexpr uint32_t VMCSF_HOST_IA32_PERF_GLOBAL_CTRL      = SIREN_ENCODE_VMCS_FIELD(FULL, 2, HOST, QWORD);
+    constexpr uint32_t VMCSF_HOST_IA32_PERF_GLOBAL_CTRL_HIGH = SIREN_ENCODE_VMCS_FIELD(HIGH, 2, HOST, QWORD);
+    constexpr uint32_t VMCSF_HOST_IA32_PKRS                  = SIREN_ENCODE_VMCS_FIELD(FULL, 3, HOST, QWORD);
+    constexpr uint32_t VMCSF_HOST_IA32_PKRS_HIGH             = SIREN_ENCODE_VMCS_FIELD(HIGH, 3, HOST, QWORD);
 
-        CTRL_PIN_BASED_VM_EXECUTION_CONTROLS                 = SIREN_ENCODE_VMCS_FIELD(FULL, 0, CONTROL, DWORD),
-        CTRL_PRIMARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS   = SIREN_ENCODE_VMCS_FIELD(FULL, 1, CONTROL, DWORD),
-        CTRL_EXCEPTION_BITMAP                                = SIREN_ENCODE_VMCS_FIELD(FULL, 2, CONTROL, DWORD),
-        CTRL_PAGEFAULT_ERROR_CODE_MASK                       = SIREN_ENCODE_VMCS_FIELD(FULL, 3, CONTROL, DWORD),
-        CTRL_PAGEFAULT_ERROR_CODE_MATCH                      = SIREN_ENCODE_VMCS_FIELD(FULL, 4, CONTROL, DWORD),
-        CTRL_CR3_TARGET_COUNT                                = SIREN_ENCODE_VMCS_FIELD(FULL, 5, CONTROL, DWORD),
-        CTRL_PRIMARY_VMEXIT_CONTROLS                         = SIREN_ENCODE_VMCS_FIELD(FULL, 6, CONTROL, DWORD),
-        CTRL_VMEXIT_MSR_STORE_COUNT                          = SIREN_ENCODE_VMCS_FIELD(FULL, 7, CONTROL, DWORD),
-        CTRL_VMEXIT_MSR_LOAD_COUNT                           = SIREN_ENCODE_VMCS_FIELD(FULL, 8, CONTROL, DWORD),
-        CTRL_VMENTRY_CONTROLS                                = SIREN_ENCODE_VMCS_FIELD(FULL, 9, CONTROL, DWORD),
-        CTRL_VMENTRY_MSR_LOAD_COUNT                          = SIREN_ENCODE_VMCS_FIELD(FULL, 10, CONTROL, DWORD),
-        CTRL_VMENTRY_INTERRUPTION_INFO                       = SIREN_ENCODE_VMCS_FIELD(FULL, 11, CONTROL, DWORD),
-        CTRL_VMENTRY_EXCEPTION_ERROR_CODE                    = SIREN_ENCODE_VMCS_FIELD(FULL, 12, CONTROL, DWORD),
-        CTRL_VMENTRY_INSTRUCTION_LENGTH                      = SIREN_ENCODE_VMCS_FIELD(FULL, 13, CONTROL, DWORD),
-        CTRL_TPR_THRESHOLD                                   = SIREN_ENCODE_VMCS_FIELD(FULL, 14, CONTROL, DWORD),
-        CTRL_SECONDARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS = SIREN_ENCODE_VMCS_FIELD(FULL, 15, CONTROL, DWORD),
-        CTRL_PLE_GAP                                         = SIREN_ENCODE_VMCS_FIELD(FULL, 16, CONTROL, DWORD),
-        CTRL_PLE_WINDOW                                      = SIREN_ENCODE_VMCS_FIELD(FULL, 17, CONTROL, DWORD),
+    // -------------------------------
+    //   B.3.1 32-Bit CONTROL Fields
+    // -------------------------------
 
-        // --------------------------------------
-        //   B.3.2 32-Bit Read-Only Data Fields
-        // --------------------------------------
+    constexpr uint32_t VMCSF_CTRL_PIN_BASED_VM_EXECUTION_CONTROLS                 = SIREN_ENCODE_VMCS_FIELD(FULL, 0, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_PRIMARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS   = SIREN_ENCODE_VMCS_FIELD(FULL, 1, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_EXCEPTION_BITMAP                                = SIREN_ENCODE_VMCS_FIELD(FULL, 2, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_PAGEFAULT_ERROR_CODE_MASK                       = SIREN_ENCODE_VMCS_FIELD(FULL, 3, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_PAGEFAULT_ERROR_CODE_MATCH                      = SIREN_ENCODE_VMCS_FIELD(FULL, 4, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_CR3_TARGET_COUNT                                = SIREN_ENCODE_VMCS_FIELD(FULL, 5, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_PRIMARY_VMEXIT_CONTROLS                         = SIREN_ENCODE_VMCS_FIELD(FULL, 6, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_VMEXIT_MSR_STORE_COUNT                          = SIREN_ENCODE_VMCS_FIELD(FULL, 7, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_VMEXIT_MSR_LOAD_COUNT                           = SIREN_ENCODE_VMCS_FIELD(FULL, 8, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_VMENTRY_CONTROLS                                = SIREN_ENCODE_VMCS_FIELD(FULL, 9, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_VMENTRY_MSR_LOAD_COUNT                          = SIREN_ENCODE_VMCS_FIELD(FULL, 10, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_VMENTRY_INTERRUPTION_INFO                       = SIREN_ENCODE_VMCS_FIELD(FULL, 11, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_VMENTRY_EXCEPTION_ERROR_CODE                    = SIREN_ENCODE_VMCS_FIELD(FULL, 12, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_VMENTRY_INSTRUCTION_LENGTH                      = SIREN_ENCODE_VMCS_FIELD(FULL, 13, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_TPR_THRESHOLD                                   = SIREN_ENCODE_VMCS_FIELD(FULL, 14, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_SECONDARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS = SIREN_ENCODE_VMCS_FIELD(FULL, 15, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_PLE_GAP                                         = SIREN_ENCODE_VMCS_FIELD(FULL, 16, CONTROL, DWORD);
+    constexpr uint32_t VMCSF_CTRL_PLE_WINDOW                                      = SIREN_ENCODE_VMCS_FIELD(FULL, 17, CONTROL, DWORD);
 
-        INFO_VM_INSTRUCTION_ERROR           = SIREN_ENCODE_VMCS_FIELD(FULL, 0, INFORMATION, DWORD),
-        INFO_EXIT_REASON                    = SIREN_ENCODE_VMCS_FIELD(FULL, 1, INFORMATION, DWORD),
-        INFO_VMEXIT_INTERRUPTION_INFO       = SIREN_ENCODE_VMCS_FIELD(FULL, 2, INFORMATION, DWORD),
-        INFO_VMEXIT_INTERRUPTION_ERROR_CODE = SIREN_ENCODE_VMCS_FIELD(FULL, 3, INFORMATION, DWORD),
-        INFO_IDT_VECTORING_INFO             = SIREN_ENCODE_VMCS_FIELD(FULL, 4, INFORMATION, DWORD),
-        INFO_IDT_VECTORING_ERROR_CODE       = SIREN_ENCODE_VMCS_FIELD(FULL, 5, INFORMATION, DWORD),
-        INFO_VMEXIT_INSTRUCTION_LENGTH      = SIREN_ENCODE_VMCS_FIELD(FULL, 6, INFORMATION, DWORD),
-        INFO_VMEXIT_INSTRUCTION_INFO        = SIREN_ENCODE_VMCS_FIELD(FULL, 7, INFORMATION, DWORD),
+    // --------------------------------------
+    //   B.3.2 32-Bit Read-Only Data Fields
+    // --------------------------------------
 
-        // -----------------------------------
-        //   B.3.3 32-Bit GUEST-State Fields
-        // -----------------------------------
+    constexpr uint32_t VMCSF_INFO_VM_INSTRUCTION_ERROR           = SIREN_ENCODE_VMCS_FIELD(FULL, 0, INFORMATION, DWORD);
+    constexpr uint32_t VMCSF_INFO_EXIT_REASON                    = SIREN_ENCODE_VMCS_FIELD(FULL, 1, INFORMATION, DWORD);
+    constexpr uint32_t VMCSF_INFO_VMEXIT_INTERRUPTION_INFO       = SIREN_ENCODE_VMCS_FIELD(FULL, 2, INFORMATION, DWORD);
+    constexpr uint32_t VMCSF_INFO_VMEXIT_INTERRUPTION_ERROR_CODE = SIREN_ENCODE_VMCS_FIELD(FULL, 3, INFORMATION, DWORD);
+    constexpr uint32_t VMCSF_INFO_IDT_VECTORING_INFO             = SIREN_ENCODE_VMCS_FIELD(FULL, 4, INFORMATION, DWORD);
+    constexpr uint32_t VMCSF_INFO_IDT_VECTORING_ERROR_CODE       = SIREN_ENCODE_VMCS_FIELD(FULL, 5, INFORMATION, DWORD);
+    constexpr uint32_t VMCSF_INFO_VMEXIT_INSTRUCTION_LENGTH      = SIREN_ENCODE_VMCS_FIELD(FULL, 6, INFORMATION, DWORD);
+    constexpr uint32_t VMCSF_INFO_VMEXIT_INSTRUCTION_INFO        = SIREN_ENCODE_VMCS_FIELD(FULL, 7, INFORMATION, DWORD);
 
-        GUEST_ES_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 0, GUEST, DWORD),
-        GUEST_CS_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 1, GUEST, DWORD),
-        GUEST_SS_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 2, GUEST, DWORD),
-        GUEST_DS_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 3, GUEST, DWORD),
-        GUEST_FS_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 4, GUEST, DWORD),
-        GUEST_GS_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 5, GUEST, DWORD),
-        GUEST_LDTR_LIMIT                    = SIREN_ENCODE_VMCS_FIELD(FULL, 6, GUEST, DWORD),
-        GUEST_TR_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 7, GUEST, DWORD),
-        GUEST_GDTR_LIMIT                    = SIREN_ENCODE_VMCS_FIELD(FULL, 8, GUEST, DWORD),
-        GUEST_IDTR_LIMIT                    = SIREN_ENCODE_VMCS_FIELD(FULL, 9, GUEST, DWORD),
-        GUEST_ES_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 10, GUEST, DWORD),
-        GUEST_CS_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 11, GUEST, DWORD),
-        GUEST_SS_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 12, GUEST, DWORD),
-        GUEST_DS_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 13, GUEST, DWORD),
-        GUEST_FS_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 14, GUEST, DWORD),
-        GUEST_GS_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 15, GUEST, DWORD),
-        GUEST_LDTR_ACCESS_RIGHTS            = SIREN_ENCODE_VMCS_FIELD(FULL, 16, GUEST, DWORD),
-        GUEST_TR_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 17, GUEST, DWORD),
-        GUEST_INTERRUPTIBILITY_STATE        = SIREN_ENCODE_VMCS_FIELD(FULL, 18, GUEST, DWORD),
-        GUEST_ACTIVITY_STATE                = SIREN_ENCODE_VMCS_FIELD(FULL, 19, GUEST, DWORD),
-        GUEST_SMBASE                        = SIREN_ENCODE_VMCS_FIELD(FULL, 20, GUEST, DWORD),
-        GUEST_IA32_SYSENTER_CS              = SIREN_ENCODE_VMCS_FIELD(FULL, 21, GUEST, DWORD),
-        GUEST_VMX_PREEMPTION_TIMER_VALUE    = SIREN_ENCODE_VMCS_FIELD(FULL, 23, GUEST, DWORD),
+    // -----------------------------------
+    //   B.3.3 32-Bit GUEST-State Fields
+    // -----------------------------------
 
-        // ---------------------------------
-        //   B.3.4 32-Bit HOST-State Field
-        // ---------------------------------
+    constexpr uint32_t VMCSF_GUEST_ES_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 0, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_CS_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 1, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_SS_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 2, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_DS_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 3, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_FS_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 4, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_GS_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 5, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_LDTR_LIMIT                    = SIREN_ENCODE_VMCS_FIELD(FULL, 6, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_TR_LIMIT                      = SIREN_ENCODE_VMCS_FIELD(FULL, 7, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_GDTR_LIMIT                    = SIREN_ENCODE_VMCS_FIELD(FULL, 8, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_IDTR_LIMIT                    = SIREN_ENCODE_VMCS_FIELD(FULL, 9, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_ES_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 10, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_CS_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 11, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_SS_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 12, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_DS_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 13, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_FS_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 14, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_GS_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 15, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_LDTR_ACCESS_RIGHTS            = SIREN_ENCODE_VMCS_FIELD(FULL, 16, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_TR_ACCESS_RIGHTS              = SIREN_ENCODE_VMCS_FIELD(FULL, 17, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_INTERRUPTIBILITY_STATE        = SIREN_ENCODE_VMCS_FIELD(FULL, 18, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_ACTIVITY_STATE                = SIREN_ENCODE_VMCS_FIELD(FULL, 19, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_SMBASE                        = SIREN_ENCODE_VMCS_FIELD(FULL, 20, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_IA32_SYSENTER_CS              = SIREN_ENCODE_VMCS_FIELD(FULL, 21, GUEST, DWORD);
+    constexpr uint32_t VMCSF_GUEST_VMX_PREEMPTION_TIMER_VALUE    = SIREN_ENCODE_VMCS_FIELD(FULL, 23, GUEST, DWORD);
 
-        HOST_IA32_SYSENTER_CS = SIREN_ENCODE_VMCS_FIELD(FULL, 0, HOST, DWORD),
+    // ---------------------------------
+    //   B.3.4 32-Bit HOST-State Field
+    // ---------------------------------
 
-        // --------------------------------------
-        //   B.4.1 NATURAL-Width CONTROL Fields
-        // --------------------------------------
+    constexpr uint32_t VMCSF_HOST_IA32_SYSENTER_CS = SIREN_ENCODE_VMCS_FIELD(FULL, 0, HOST, DWORD);
 
-        CTRL_CR0_GUEST_HOST_MASK = SIREN_ENCODE_VMCS_FIELD(FULL, 0, CONTROL, NATURAL),
-        CTRL_CR4_GUEST_HOST_MASK = SIREN_ENCODE_VMCS_FIELD(FULL, 1, CONTROL, NATURAL),
-        CTRL_CR0_READ_SHADOW     = SIREN_ENCODE_VMCS_FIELD(FULL, 2, CONTROL, NATURAL),
-        CTRL_CR4_READ_SHADOW     = SIREN_ENCODE_VMCS_FIELD(FULL, 3, CONTROL, NATURAL),
-        CTRL_CR3_TARGET_VALUE0   = SIREN_ENCODE_VMCS_FIELD(FULL, 4, CONTROL, NATURAL),
-        CTRL_CR3_TARGET_VALUE1   = SIREN_ENCODE_VMCS_FIELD(FULL, 5, CONTROL, NATURAL),
-        CTRL_CR3_TARGET_VALUE2   = SIREN_ENCODE_VMCS_FIELD(FULL, 6, CONTROL, NATURAL),
-        CTRL_CR3_TARGET_VALUE3   = SIREN_ENCODE_VMCS_FIELD(FULL, 7, CONTROL, NATURAL),
+    // --------------------------------------
+    //   B.4.1 NATURAL-Width CONTROL Fields
+    // --------------------------------------
 
-        // ---------------------------------------------
-        //   B.4.2 NATURAL-Width Read-Only Data Fields
-        // ---------------------------------------------
+    constexpr uint32_t VMCSF_CTRL_CR0_GUEST_HOST_MASK = SIREN_ENCODE_VMCS_FIELD(FULL, 0, CONTROL, NATURAL);
+    constexpr uint32_t VMCSF_CTRL_CR4_GUEST_HOST_MASK = SIREN_ENCODE_VMCS_FIELD(FULL, 1, CONTROL, NATURAL);
+    constexpr uint32_t VMCSF_CTRL_CR0_READ_SHADOW     = SIREN_ENCODE_VMCS_FIELD(FULL, 2, CONTROL, NATURAL);
+    constexpr uint32_t VMCSF_CTRL_CR4_READ_SHADOW     = SIREN_ENCODE_VMCS_FIELD(FULL, 3, CONTROL, NATURAL);
+    constexpr uint32_t VMCSF_CTRL_CR3_TARGET_VALUE0   = SIREN_ENCODE_VMCS_FIELD(FULL, 4, CONTROL, NATURAL);
+    constexpr uint32_t VMCSF_CTRL_CR3_TARGET_VALUE1   = SIREN_ENCODE_VMCS_FIELD(FULL, 5, CONTROL, NATURAL);
+    constexpr uint32_t VMCSF_CTRL_CR3_TARGET_VALUE2   = SIREN_ENCODE_VMCS_FIELD(FULL, 6, CONTROL, NATURAL);
+    constexpr uint32_t VMCSF_CTRL_CR3_TARGET_VALUE3   = SIREN_ENCODE_VMCS_FIELD(FULL, 7, CONTROL, NATURAL);
 
-        INFO_EXIT_QUALIFICATION     = SIREN_ENCODE_VMCS_FIELD(FULL, 0, INFORMATION, NATURAL),
-        INFO_IO_RCX                 = SIREN_ENCODE_VMCS_FIELD(FULL, 1, INFORMATION, NATURAL),
-        INFO_IO_RSI                 = SIREN_ENCODE_VMCS_FIELD(FULL, 2, INFORMATION, NATURAL),
-        INFO_IO_RDI                 = SIREN_ENCODE_VMCS_FIELD(FULL, 3, INFORMATION, NATURAL),
-        INFO_IO_RIP                 = SIREN_ENCODE_VMCS_FIELD(FULL, 4, INFORMATION, NATURAL),
-        INFO_GUEST_LINEAR_ADDRESS   = SIREN_ENCODE_VMCS_FIELD(FULL, 5, INFORMATION, NATURAL),
+    // ---------------------------------------------
+    //   B.4.2 NATURAL-Width Read-Only Data Fields
+    // ---------------------------------------------
 
-        // ------------------------------------------
-        //   B.4.3 NATURAL-Width GUEST-State Fields
-        // ------------------------------------------
+    constexpr uint32_t VMCSF_INFO_EXIT_QUALIFICATION     = SIREN_ENCODE_VMCS_FIELD(FULL, 0, INFORMATION, NATURAL);
+    constexpr uint32_t VMCSF_INFO_IO_RCX                 = SIREN_ENCODE_VMCS_FIELD(FULL, 1, INFORMATION, NATURAL);
+    constexpr uint32_t VMCSF_INFO_IO_RSI                 = SIREN_ENCODE_VMCS_FIELD(FULL, 2, INFORMATION, NATURAL);
+    constexpr uint32_t VMCSF_INFO_IO_RDI                 = SIREN_ENCODE_VMCS_FIELD(FULL, 3, INFORMATION, NATURAL);
+    constexpr uint32_t VMCSF_INFO_IO_RIP                 = SIREN_ENCODE_VMCS_FIELD(FULL, 4, INFORMATION, NATURAL);
+    constexpr uint32_t VMCSF_INFO_GUEST_LINEAR_ADDRESS   = SIREN_ENCODE_VMCS_FIELD(FULL, 5, INFORMATION, NATURAL);
 
-        GUEST_CR0                           = SIREN_ENCODE_VMCS_FIELD(FULL, 0, GUEST, NATURAL),
-        GUEST_CR3                           = SIREN_ENCODE_VMCS_FIELD(FULL, 1, GUEST, NATURAL),
-        GUEST_CR4                           = SIREN_ENCODE_VMCS_FIELD(FULL, 2, GUEST, NATURAL),
-        GUEST_ES_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 3, GUEST, NATURAL),
-        GUEST_CS_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 4, GUEST, NATURAL),
-        GUEST_SS_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 5, GUEST, NATURAL),
-        GUEST_DS_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 6, GUEST, NATURAL),
-        GUEST_FS_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 7, GUEST, NATURAL),
-        GUEST_GS_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 8, GUEST, NATURAL),
-        GUEST_LDTR_BASE                     = SIREN_ENCODE_VMCS_FIELD(FULL, 9, GUEST, NATURAL),
-        GUEST_TR_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 10, GUEST, NATURAL),
-        GUEST_GDTR_BASE                     = SIREN_ENCODE_VMCS_FIELD(FULL, 11, GUEST, NATURAL),
-        GUEST_IDTR_BASE                     = SIREN_ENCODE_VMCS_FIELD(FULL, 12, GUEST, NATURAL),
-        GUEST_DR7                           = SIREN_ENCODE_VMCS_FIELD(FULL, 13, GUEST, NATURAL),
-        GUEST_RSP                           = SIREN_ENCODE_VMCS_FIELD(FULL, 14, GUEST, NATURAL),
-        GUEST_RIP                           = SIREN_ENCODE_VMCS_FIELD(FULL, 15, GUEST, NATURAL),
-        GUEST_RFLAGS                        = SIREN_ENCODE_VMCS_FIELD(FULL, 16, GUEST, NATURAL),
-        GUEST_PENDING_DEBUG_EXCEPTIONS      = SIREN_ENCODE_VMCS_FIELD(FULL, 17, GUEST, NATURAL),
-        GUEST_IA32_SYSENTER_ESP             = SIREN_ENCODE_VMCS_FIELD(FULL, 18, GUEST, NATURAL),
-        GUEST_IA32_SYSENTER_EIP             = SIREN_ENCODE_VMCS_FIELD(FULL, 19, GUEST, NATURAL),
-        GUEST_IA32_S_CET                    = SIREN_ENCODE_VMCS_FIELD(FULL, 20, GUEST, NATURAL),
-        GUEST_SSP                           = SIREN_ENCODE_VMCS_FIELD(FULL, 21, GUEST, NATURAL),
-        GUEST_IA32_INTERRUPT_SSP_TABLE_ADDR = SIREN_ENCODE_VMCS_FIELD(FULL, 22, GUEST, NATURAL),
+    // ------------------------------------------
+    //   B.4.3 NATURAL-Width GUEST-State Fields
+    // ------------------------------------------
 
-        // -----------------------------------------
-        //   B.4.4 NATURAL-Width HOST-State Fields
-        // -----------------------------------------
-        HOST_CR0                            = SIREN_ENCODE_VMCS_FIELD(FULL, 0, HOST, NATURAL),
-        HOST_CR3                            = SIREN_ENCODE_VMCS_FIELD(FULL, 1, HOST, NATURAL),
-        HOST_CR4                            = SIREN_ENCODE_VMCS_FIELD(FULL, 2, HOST, NATURAL),
-        HOST_FS_BASE                        = SIREN_ENCODE_VMCS_FIELD(FULL, 3, HOST, NATURAL),
-        HOST_GS_BASE                        = SIREN_ENCODE_VMCS_FIELD(FULL, 4, HOST, NATURAL),
-        HOST_TR_BASE                        = SIREN_ENCODE_VMCS_FIELD(FULL, 5, HOST, NATURAL),
-        HOST_GDTR_BASE                      = SIREN_ENCODE_VMCS_FIELD(FULL, 6, HOST, NATURAL),
-        HOST_IDTR_BASE                      = SIREN_ENCODE_VMCS_FIELD(FULL, 7, HOST, NATURAL),
-        HOST_IA32_SYSENTER_ESP              = SIREN_ENCODE_VMCS_FIELD(FULL, 8, HOST, NATURAL),
-        HOST_IA32_SYSENTER_EIP              = SIREN_ENCODE_VMCS_FIELD(FULL, 9, HOST, NATURAL),
-        HOST_RSP                            = SIREN_ENCODE_VMCS_FIELD(FULL, 10, HOST, NATURAL),
-        HOST_RIP                            = SIREN_ENCODE_VMCS_FIELD(FULL, 11, HOST, NATURAL),
-        HOST_IA32_S_CET                     = SIREN_ENCODE_VMCS_FIELD(FULL, 12, HOST, NATURAL),
-        HOST_SSP                            = SIREN_ENCODE_VMCS_FIELD(FULL, 13, HOST, NATURAL),
-        HOST_IA32_INTERRUPT_SSP_TABLE_ADDR  = SIREN_ENCODE_VMCS_FIELD(FULL, 14, HOST, NATURAL),
-    };
+    constexpr uint32_t VMCSF_GUEST_CR0                           = SIREN_ENCODE_VMCS_FIELD(FULL, 0, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_CR3                           = SIREN_ENCODE_VMCS_FIELD(FULL, 1, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_CR4                           = SIREN_ENCODE_VMCS_FIELD(FULL, 2, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_ES_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 3, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_CS_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 4, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_SS_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 5, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_DS_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 6, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_FS_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 7, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_GS_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 8, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_LDTR_BASE                     = SIREN_ENCODE_VMCS_FIELD(FULL, 9, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_TR_BASE                       = SIREN_ENCODE_VMCS_FIELD(FULL, 10, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_GDTR_BASE                     = SIREN_ENCODE_VMCS_FIELD(FULL, 11, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_IDTR_BASE                     = SIREN_ENCODE_VMCS_FIELD(FULL, 12, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_DR7                           = SIREN_ENCODE_VMCS_FIELD(FULL, 13, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_RSP                           = SIREN_ENCODE_VMCS_FIELD(FULL, 14, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_RIP                           = SIREN_ENCODE_VMCS_FIELD(FULL, 15, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_RFLAGS                        = SIREN_ENCODE_VMCS_FIELD(FULL, 16, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_PENDING_DEBUG_EXCEPTIONS      = SIREN_ENCODE_VMCS_FIELD(FULL, 17, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_IA32_SYSENTER_ESP             = SIREN_ENCODE_VMCS_FIELD(FULL, 18, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_IA32_SYSENTER_EIP             = SIREN_ENCODE_VMCS_FIELD(FULL, 19, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_IA32_S_CET                    = SIREN_ENCODE_VMCS_FIELD(FULL, 20, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_SSP                           = SIREN_ENCODE_VMCS_FIELD(FULL, 21, GUEST, NATURAL);
+    constexpr uint32_t VMCSF_GUEST_IA32_INTERRUPT_SSP_TABLE_ADDR = SIREN_ENCODE_VMCS_FIELD(FULL, 22, GUEST, NATURAL);
+
+    // -----------------------------------------
+    //   B.4.4 NATURAL-Width HOST-State Fields
+    // -----------------------------------------
+    constexpr uint32_t VMCSF_HOST_CR0                            = SIREN_ENCODE_VMCS_FIELD(FULL, 0, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_CR3                            = SIREN_ENCODE_VMCS_FIELD(FULL, 1, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_CR4                            = SIREN_ENCODE_VMCS_FIELD(FULL, 2, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_FS_BASE                        = SIREN_ENCODE_VMCS_FIELD(FULL, 3, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_GS_BASE                        = SIREN_ENCODE_VMCS_FIELD(FULL, 4, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_TR_BASE                        = SIREN_ENCODE_VMCS_FIELD(FULL, 5, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_GDTR_BASE                      = SIREN_ENCODE_VMCS_FIELD(FULL, 6, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_IDTR_BASE                      = SIREN_ENCODE_VMCS_FIELD(FULL, 7, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_IA32_SYSENTER_ESP              = SIREN_ENCODE_VMCS_FIELD(FULL, 8, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_IA32_SYSENTER_EIP              = SIREN_ENCODE_VMCS_FIELD(FULL, 9, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_RSP                            = SIREN_ENCODE_VMCS_FIELD(FULL, 10, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_RIP                            = SIREN_ENCODE_VMCS_FIELD(FULL, 11, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_IA32_S_CET                     = SIREN_ENCODE_VMCS_FIELD(FULL, 12, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_SSP                            = SIREN_ENCODE_VMCS_FIELD(FULL, 13, HOST, NATURAL);
+    constexpr uint32_t VMCSF_HOST_IA32_INTERRUPT_SSP_TABLE_ADDR  = SIREN_ENCODE_VMCS_FIELD(FULL, 14, HOST, NATURAL);
 
 #undef SIREN_ENCODE_VMCS_FIELD
 
-    template<vmcs_field_name_e _Vfname>
-    using vmcs_field_storage_t = 
-        std::conditional_t<vmcs_field_encoding_t::from_name(_Vfname).semantics.width == std::to_underlying(vmcs_field_width_e::WORD), uint16_t,
-            std::conditional_t<vmcs_field_encoding_t::from_name(_Vfname).semantics.width == std::to_underlying(vmcs_field_width_e::DWORD), uint32_t,
-                std::conditional_t<vmcs_field_encoding_t::from_name(_Vfname).semantics.width == std::to_underlying(vmcs_field_width_e::QWORD), std::conditional_t<vmcs_field_encoding_t::from_name(_Vfname).semantics.access == std::to_underlying(vmcs_field_access_e::HIGH), uint32_t, uint64_t>,
-                    std::conditional_t<vmcs_field_encoding_t::from_name(_Vfname).semantics.width == std::to_underlying(vmcs_field_width_e::NATURAL), uintptr_t, void>
+    template<uint32_t V, vmcsf_encoding_t E = vmcsf_encoding_t::from(V)>
+    using vmcsf_storage_t = 
+        std::conditional_t<E.semantics.width == to_underlying(vmcsf_width_e::WORD), uint16_t,
+            std::conditional_t<E.semantics.width == to_underlying(vmcsf_width_e::DWORD), uint32_t,
+                std::conditional_t<E.semantics.width == to_underlying(vmcsf_width_e::QWORD), std::conditional_t<E.semantics.access == to_underlying(vmcsf_access_e::HIGH), uint32_t, uint64_t>,
+                    std::conditional_t<E.semantics.width == to_underlying(vmcsf_width_e::NATURAL), uintptr_t, void>
                 >
             >
         >;
 
-    template<vmcs_field_name_e _Vfname>
-    struct vmcs_field_value_t {
-        vmcs_field_storage_t<_Vfname> storage;
+    template<uint32_t V>
+    struct vmcsf_t {
+        vmcsf_storage_t<V> storage;
     };
 
-#define SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(_Vfname) \
-    static_assert(sizeof(vmcs_field_value_t<vmcs_field_name_e::_Vfname>) == sizeof(vmcs_field_storage_t<vmcs_field_name_e::_Vfname>)); \
-    static_assert(sizeof(vmcs_field_value_t<vmcs_field_name_e::_Vfname>::storage) == sizeof(vmcs_field_value_t<vmcs_field_name_e::_Vfname>::semantics))
+#define SIREN_VMCSF_SIZE_GUARD(V)                                               \
+    static_assert(sizeof(vmcsf_t<V>) == sizeof(vmcsf_storage_t<V>));            \
+    static_assert(sizeof(vmcsf_t<V>::storage) == sizeof(vmcsf_t<V>::semantics));
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_VIRTUAL_PROCESSOR_IDENTIFIER> {
+    struct vmcsf_t<VMCSF_CTRL_VPID> {
         union {
             uint16_t storage;
             struct {
@@ -497,10 +495,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_VIRTUAL_PROCESSOR_IDENTIFIER);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_VPID);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_ES_SELECTOR> {
+    struct vmcsf_t<VMCSF_GUEST_ES_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -511,10 +509,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_ES_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_ES_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_CS_SELECTOR> {
+    struct vmcsf_t<VMCSF_GUEST_CS_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -525,10 +523,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_CS_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_CS_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_SS_SELECTOR> {
+    struct vmcsf_t<VMCSF_GUEST_SS_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -539,10 +537,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_SS_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_SS_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_DS_SELECTOR> {
+    struct vmcsf_t<VMCSF_GUEST_DS_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -553,10 +551,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_DS_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_DS_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_FS_SELECTOR> {
+    struct vmcsf_t<VMCSF_GUEST_FS_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -567,10 +565,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_FS_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_FS_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_GS_SELECTOR> {
+    struct vmcsf_t<VMCSF_GUEST_GS_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -581,10 +579,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_GS_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_GS_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_LDTR_SELECTOR> {
+    struct vmcsf_t<VMCSF_GUEST_LDTR_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -595,10 +593,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_LDTR_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_LDTR_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_TR_SELECTOR> {
+    struct vmcsf_t<VMCSF_GUEST_TR_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -609,10 +607,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_TR_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_TR_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::HOST_ES_SELECTOR> {
+    struct vmcsf_t<VMCSF_HOST_ES_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -623,10 +621,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(HOST_ES_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_HOST_ES_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::HOST_CS_SELECTOR> {
+    struct vmcsf_t<VMCSF_HOST_CS_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -637,10 +635,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(HOST_CS_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_HOST_CS_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::HOST_SS_SELECTOR> {
+    struct vmcsf_t<VMCSF_HOST_SS_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -651,10 +649,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(HOST_SS_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_HOST_SS_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::HOST_DS_SELECTOR> {
+    struct vmcsf_t<VMCSF_HOST_DS_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -665,10 +663,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(HOST_DS_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_HOST_DS_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::HOST_FS_SELECTOR> {
+    struct vmcsf_t<VMCSF_HOST_FS_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -679,10 +677,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(HOST_FS_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_HOST_FS_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::HOST_GS_SELECTOR> {
+    struct vmcsf_t<VMCSF_HOST_GS_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -693,10 +691,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(HOST_GS_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_HOST_GS_SELECTOR);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::HOST_TR_SELECTOR> {
+    struct vmcsf_t<VMCSF_HOST_TR_SELECTOR> {
         union {
             uint16_t storage;
             struct {
@@ -707,7 +705,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(HOST_TR_SELECTOR);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_HOST_TR_SELECTOR);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -716,7 +714,7 @@ namespace siren::x86 {
     //      |-> 24.6.1 Pin-Based VM-Execution CONTROLs
     //        |-> Table 24-5. Definitions of Pin-Based VM-Execution CONTROLs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_PIN_BASED_VM_EXECUTION_CONTROLS> {
+    struct vmcsf_t<VMCSF_CTRL_PIN_BASED_VM_EXECUTION_CONTROLS> {
         union {
             uint32_t storage;
             struct {
@@ -732,7 +730,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_PIN_BASED_VM_EXECUTION_CONTROLS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_PIN_BASED_VM_EXECUTION_CONTROLS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -741,7 +739,7 @@ namespace siren::x86 {
     //      |-> 24.6.2 Processor-Based VM-Execution CONTROLs
     //        |-> Table 24-6. Definitions of Primary Processor-Based VM-Execution CONTROLs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_PRIMARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS> {
+    struct vmcsf_t<VMCSF_CTRL_PRIMARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS> {
         union {
             uint32_t storage;
             struct {
@@ -777,7 +775,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_PRIMARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_PRIMARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -786,7 +784,7 @@ namespace siren::x86 {
     //      |-> 24.6.2 Processor-Based VM-Execution CONTROLs
     //        |-> Table 24-7. Definitions of Secondary Processor-Based VM-Execution CONTROLs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_SECONDARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS> {
+    struct vmcsf_t<VMCSF_CTRL_SECONDARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS> {
         union {
             uint32_t storage;
             struct {
@@ -824,7 +822,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_SECONDARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_SECONDARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -833,7 +831,7 @@ namespace siren::x86 {
     //      |-> 24.6.2 Processor-Based VM-Execution CONTROLs
     //        |-> Table 24-8. Definitions of Tertiary Processor-Based VM-Execution CONTROLs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_TERTIARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS> {
+    struct vmcsf_t<VMCSF_CTRL_TERTIARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS> {
         union {
             uint64_t storage;
             struct {
@@ -846,7 +844,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_TERTIARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_TERTIARY_PROCESSOR_BASED_VM_EXECUTION_CONTROLS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -855,7 +853,7 @@ namespace siren::x86 {
     //      |-> 24.6.11 Extended-Page-Table Pointer (EPTP)
     //        |-> Table 24-9. Format of Extended-Page-Table Pointer
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_EPT_POINTER> {
+    struct vmcsf_t<VMCSF_CTRL_EPT_POINTER> {
         union {
             uint64_t storage;
             struct {
@@ -870,7 +868,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_EPT_POINTER);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_EPT_POINTER);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -879,7 +877,7 @@ namespace siren::x86 {
     //      |-> 24.7.1 VM-Exit CONTROLs
     //        |-> Table 24-13. Definitions of Primary VM-Exit CONTROLs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_PRIMARY_VMEXIT_CONTROLS> {
+    struct vmcsf_t<VMCSF_CTRL_PRIMARY_VMEXIT_CONTROLS> {
         union {
             uint32_t storage;
             struct {
@@ -909,7 +907,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_PRIMARY_VMEXIT_CONTROLS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_PRIMARY_VMEXIT_CONTROLS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -918,7 +916,7 @@ namespace siren::x86 {
     //      |-> 24.7.1 VM-Exit CONTROLs
     //        |-> Table 24-13. Definitions of Primary VM-Exit CONTROLs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_SECONDARY_VMEXIT_CONTROLS> {
+    struct vmcsf_t<VMCSF_CTRL_SECONDARY_VMEXIT_CONTROLS> {
         union {
             uint64_t storage;
             struct {
@@ -927,7 +925,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_SECONDARY_VMEXIT_CONTROLS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_SECONDARY_VMEXIT_CONTROLS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -935,7 +933,7 @@ namespace siren::x86 {
     //    |-> 24.7 VM-Exit CONTROL Fields
     //      |-> 24.7.2 VM-Exit CONTROLs for MSRs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_VMEXIT_MSR_STORE_COUNT> {
+    struct vmcsf_t<VMCSF_CTRL_VMEXIT_MSR_STORE_COUNT> {
         union {
             uint32_t storage;
             struct {
@@ -944,7 +942,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_VMEXIT_MSR_STORE_COUNT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_VMEXIT_MSR_STORE_COUNT);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -952,7 +950,7 @@ namespace siren::x86 {
     //    |-> 24.7 VM-Exit CONTROL Fields
     //      |-> 24.7.2 VM-Exit CONTROLs for MSRs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_VMEXIT_MSR_STORE_ADDRESS> {
+    struct vmcsf_t<VMCSF_CTRL_VMEXIT_MSR_STORE_ADDRESS> {
         union {
             uint64_t storage;
             struct {
@@ -961,7 +959,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_VMEXIT_MSR_STORE_ADDRESS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_VMEXIT_MSR_STORE_ADDRESS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -969,7 +967,7 @@ namespace siren::x86 {
     //    |-> 24.7 VM-Exit CONTROL Fields
     //      |-> 24.7.2 VM-Exit CONTROLs for MSRs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_VMEXIT_MSR_LOAD_COUNT> {
+    struct vmcsf_t<VMCSF_CTRL_VMEXIT_MSR_LOAD_COUNT> {
         union {
             uint32_t storage;
             struct {
@@ -978,7 +976,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_VMEXIT_MSR_LOAD_COUNT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_VMEXIT_MSR_LOAD_COUNT);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -986,7 +984,7 @@ namespace siren::x86 {
     //    |-> 24.7 VM-Exit CONTROL Fields
     //      |-> 24.7.2 VM-Exit CONTROLs for MSRs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_VMEXIT_MSR_LOAD_ADDRESS> {
+    struct vmcsf_t<VMCSF_CTRL_VMEXIT_MSR_LOAD_ADDRESS> {
         union {
             uint64_t storage;
             struct {
@@ -995,7 +993,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_VMEXIT_MSR_LOAD_ADDRESS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_VMEXIT_MSR_LOAD_ADDRESS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -1004,7 +1002,7 @@ namespace siren::x86 {
     //      |-> 24.8.1 VM-Entry CONTROLs
     //        |-> Table 24-15. Definitions of VM-Entry CONTROLs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_VMENTRY_CONTROLS> {
+    struct vmcsf_t<VMCSF_CTRL_VMENTRY_CONTROLS> {
         union {
             uint32_t storage;
             struct {
@@ -1030,7 +1028,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_VMENTRY_CONTROLS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_VMENTRY_CONTROLS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -1038,7 +1036,7 @@ namespace siren::x86 {
     //    |-> 24.8 VM-Entry CONTROL Fields
     //      |-> 24.8.2 VM-Entry CONTROLs for MSRs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_VMENTRY_MSR_LOAD_COUNT> {
+    struct vmcsf_t<VMCSF_CTRL_VMENTRY_MSR_LOAD_COUNT> {
         union {
             uint32_t storage;
             struct {
@@ -1047,7 +1045,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_VMENTRY_MSR_LOAD_COUNT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_VMENTRY_MSR_LOAD_COUNT);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -1055,7 +1053,7 @@ namespace siren::x86 {
     //    |-> 24.8 VM-Entry CONTROL Fields
     //      |-> 24.8.2 VM-Entry CONTROLs for MSRs
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_VMENTRY_MSR_LOAD_ADDRESS> {
+    struct vmcsf_t<VMCSF_CTRL_VMENTRY_MSR_LOAD_ADDRESS> {
         union {
             uint64_t storage;
             struct {
@@ -1064,7 +1062,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_VMENTRY_MSR_LOAD_ADDRESS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_VMENTRY_MSR_LOAD_ADDRESS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -1072,7 +1070,7 @@ namespace siren::x86 {
     //    |-> 24.8 VM-Entry CONTROL Fields
     //      |-> 24.8.2 VM-Entry CONTROLs for Event Injection
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::CTRL_VMENTRY_INTERRUPTION_INFO> {
+    struct vmcsf_t<VMCSF_CTRL_VMENTRY_INTERRUPTION_INFO> {
         union {
             uint32_t storage;
             struct {
@@ -1095,7 +1093,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(CTRL_VMENTRY_INTERRUPTION_INFO);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_CTRL_VMENTRY_INTERRUPTION_INFO);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -1104,7 +1102,7 @@ namespace siren::x86 {
     //      |-> 24.9.1 Basic VM-Exit INFORMATION
     //        |-> Table 24-17. Format of Exit Reason
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::INFO_EXIT_REASON> {
+    struct vmcsf_t<VMCSF_INFO_EXIT_REASON> {
         union {
             uint32_t storage;
             struct {
@@ -1120,7 +1118,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(INFO_EXIT_REASON);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_INFO_EXIT_REASON);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -1129,7 +1127,7 @@ namespace siren::x86 {
     //      |-> 24.9.2 INFORMATION for VM Exits Due to Vectored Events
     //        |-> Table 24-18. Format of the VM-Exit Interruption-INFORMATION Field
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::INFO_VMEXIT_INTERRUPTION_INFO> {
+    struct vmcsf_t<VMCSF_INFO_VMEXIT_INTERRUPTION_INFO> {
         union {
             uint32_t storage;
             struct {
@@ -1143,10 +1141,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(INFO_VMEXIT_INTERRUPTION_INFO);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_INFO_VMEXIT_INTERRUPTION_INFO);
     
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::INFO_VMEXIT_INSTRUCTION_LENGTH> {
+    struct vmcsf_t<VMCSF_INFO_VMEXIT_INSTRUCTION_LENGTH> {
         union {
             uint32_t storage;
             struct {
@@ -1155,10 +1153,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(INFO_VMEXIT_INSTRUCTION_LENGTH);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_INFO_VMEXIT_INSTRUCTION_LENGTH);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_ES_LIMIT> {
+    struct vmcsf_t<VMCSF_GUEST_ES_LIMIT> {
         union {
             uint32_t storage;
             struct {
@@ -1167,10 +1165,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_ES_LIMIT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_ES_LIMIT);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_CS_LIMIT> {
+    struct vmcsf_t<VMCSF_GUEST_CS_LIMIT> {
         union {
             uint32_t storage;
             struct {
@@ -1179,10 +1177,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_CS_LIMIT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_CS_LIMIT);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_SS_LIMIT> {
+    struct vmcsf_t<VMCSF_GUEST_SS_LIMIT> {
         union {
             uint32_t storage;
             struct {
@@ -1191,10 +1189,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_SS_LIMIT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_SS_LIMIT);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_DS_LIMIT> {
+    struct vmcsf_t<VMCSF_GUEST_DS_LIMIT> {
         union {
             uint32_t storage;
             struct {
@@ -1203,10 +1201,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_DS_LIMIT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_DS_LIMIT);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_FS_LIMIT> {
+    struct vmcsf_t<VMCSF_GUEST_FS_LIMIT> {
         union {
             uint32_t storage;
             struct {
@@ -1215,10 +1213,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_FS_LIMIT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_FS_LIMIT);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_GS_LIMIT> {
+    struct vmcsf_t<VMCSF_GUEST_GS_LIMIT> {
         union {
             uint32_t storage;
             struct {
@@ -1227,10 +1225,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_GS_LIMIT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_GS_LIMIT);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_LDTR_LIMIT> {
+    struct vmcsf_t<VMCSF_GUEST_LDTR_LIMIT> {
         union {
             uint32_t storage;
             struct {
@@ -1239,10 +1237,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_LDTR_LIMIT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_LDTR_LIMIT);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_TR_LIMIT> {
+    struct vmcsf_t<VMCSF_GUEST_TR_LIMIT> {
         union {
             uint32_t storage;
             struct {
@@ -1251,10 +1249,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_TR_LIMIT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_TR_LIMIT);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_GDTR_LIMIT> {
+    struct vmcsf_t<VMCSF_GUEST_GDTR_LIMIT> {
         union {
             uint32_t storage;
             struct {
@@ -1263,10 +1261,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_GDTR_LIMIT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_GDTR_LIMIT);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_IDTR_LIMIT> {
+    struct vmcsf_t<VMCSF_GUEST_IDTR_LIMIT> {
         union {
             uint32_t storage;
             struct {
@@ -1275,10 +1273,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_IDTR_LIMIT);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_IDTR_LIMIT);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_ES_ACCESS_RIGHTS> {
+    struct vmcsf_t<VMCSF_GUEST_ES_ACCESS_RIGHTS> {
         union {
             uint32_t storage;
             struct {
@@ -1300,10 +1298,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_ES_ACCESS_RIGHTS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_ES_ACCESS_RIGHTS);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_CS_ACCESS_RIGHTS> {
+    struct vmcsf_t<VMCSF_GUEST_CS_ACCESS_RIGHTS> {
         union {
             uint32_t storage;
             struct {
@@ -1325,10 +1323,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_CS_ACCESS_RIGHTS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_CS_ACCESS_RIGHTS);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_SS_ACCESS_RIGHTS> {
+    struct vmcsf_t<VMCSF_GUEST_SS_ACCESS_RIGHTS> {
         union {
             uint32_t storage;
             struct {
@@ -1350,10 +1348,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_SS_ACCESS_RIGHTS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_SS_ACCESS_RIGHTS);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_DS_ACCESS_RIGHTS> {
+    struct vmcsf_t<VMCSF_GUEST_DS_ACCESS_RIGHTS> {
         union {
             uint32_t storage;
             struct {
@@ -1375,10 +1373,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_DS_ACCESS_RIGHTS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_DS_ACCESS_RIGHTS);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_FS_ACCESS_RIGHTS> {
+    struct vmcsf_t<VMCSF_GUEST_FS_ACCESS_RIGHTS> {
         union {
             uint32_t storage;
             struct {
@@ -1400,10 +1398,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_FS_ACCESS_RIGHTS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_FS_ACCESS_RIGHTS);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_GS_ACCESS_RIGHTS> {
+    struct vmcsf_t<VMCSF_GUEST_GS_ACCESS_RIGHTS> {
         union {
             uint32_t storage;
             struct {
@@ -1425,10 +1423,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_GS_ACCESS_RIGHTS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_GS_ACCESS_RIGHTS);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_LDTR_ACCESS_RIGHTS> {
+    struct vmcsf_t<VMCSF_GUEST_LDTR_ACCESS_RIGHTS> {
         union {
             uint32_t storage;
             struct {
@@ -1447,10 +1445,10 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_LDTR_ACCESS_RIGHTS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_LDTR_ACCESS_RIGHTS);
 
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::GUEST_TR_ACCESS_RIGHTS> {
+    struct vmcsf_t<VMCSF_GUEST_TR_ACCESS_RIGHTS> {
         union {
             uint32_t storage;
             struct {
@@ -1469,7 +1467,7 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(GUEST_TR_ACCESS_RIGHTS);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_GUEST_TR_ACCESS_RIGHTS);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -1478,7 +1476,7 @@ namespace siren::x86 {
     //      |-> 27.2.1 Basic VM-Exit Information
     //        |-> Table 27-1. Exit Qualification for Debug Exceptions
     template<>
-    struct vmcs_field_value_t<vmcs_field_name_e::INFO_EXIT_QUALIFICATION> {
+    struct vmcsf_t<VMCSF_INFO_EXIT_QUALIFICATION> {
         union {
             uintptr_t storage;
             union {
@@ -1518,98 +1516,78 @@ namespace siren::x86 {
         };
     };
 
-    SIREN_VMCS_FIELD_VALUE_SIZE_GUARD(INFO_EXIT_QUALIFICATION);
+    SIREN_VMCSF_SIZE_GUARD(VMCSF_INFO_EXIT_QUALIFICATION);
 
-#undef SIREN_VMCS_FIELD_VALUE_SIZE_GUARD
+#undef SIREN_VMCSF_SIZE_GUARD
 
     struct vmx_result_t {
-        uint8_t storage;
-
-        static const vmx_result_t success_v;
-        static const vmx_result_t failure_with_reason_v;
-        static const vmx_result_t failure_without_reason_v;
+        uint8_t value;
 
         [[nodiscard]]
-        constexpr bool operator==(const vmx_result_t& other) const noexcept = default;
+        constexpr bool is_failure() const noexcept { return value != 0; }
 
         [[nodiscard]]
-        constexpr bool operator!=(const vmx_result_t& other) const noexcept = default;
+        constexpr bool is_success() const noexcept { return value == 0; }
 
         [[nodiscard]]
-        constexpr bool fails() const noexcept;
+        static constexpr vmx_result_t success() noexcept { return { 0 }; }
 
         [[nodiscard]]
-        constexpr bool succeeds() const noexcept;
+        static constexpr vmx_result_t failure_with_reason() noexcept { return { 1 }; }
 
-        void invoke_debugger_when_failure() const noexcept {
-            if (fails()) {
-                invoke_debugger();
-            }
-        }
+        [[nodiscard]]
+        static constexpr vmx_result_t failure_without_reason() noexcept { return { 2 }; }
     };
 
-    inline constexpr vmx_result_t vmx_result_t::success_v = { 0 };
-    inline constexpr vmx_result_t vmx_result_t::failure_with_reason_v = { 1 };
-    inline constexpr vmx_result_t vmx_result_t::failure_without_reason_v = { 2 };
+    static_assert(std::is_aggregate_v<vmx_result_t>);
 
     [[nodiscard]]
-    constexpr bool vmx_result_t::fails() const noexcept {
-        return *this != success_v;
+    inline vmx_result_t vmx_on(paddr_t vmxon_region_address) noexcept {
+        return { __vmx_on(&vmxon_region_address) };
     }
 
     [[nodiscard]]
-    constexpr bool vmx_result_t::succeeds() const noexcept {
-        return *this == success_v;
+    inline vmx_result_t vmx_clear(paddr_t vmcs_region_address) noexcept {
+        return { __vmx_vmclear(&vmcs_region_address) };
     }
 
     [[nodiscard]]
-    inline auto vmx_on(physical_address_t vmxon_region_physical_address) noexcept {
-        return vmx_result_t{ __vmx_on(&vmxon_region_physical_address) };
+    inline vmx_result_t vmx_ptrld(paddr_t vmcs_region_address) noexcept {
+        return { __vmx_vmptrld(&vmcs_region_address) };
     }
 
     [[nodiscard]]
-    inline auto vmx_clear(physical_address_t vmcs_region_physical_address) noexcept {
-        return vmx_result_t{ __vmx_vmclear(&vmcs_region_physical_address) };
+    inline paddr_t vmx_ptrst() noexcept {
+        paddr_t vmcs_region_address;
+        __vmx_vmptrst(&vmcs_region_address);
+        return vmcs_region_address;
+    }
+
+    template<uint32_t V>
+    [[nodiscard]]
+    vmx_result_t vmx_read(vmcsf_t<V>& field) noexcept {
+        size_t raw_value;
+        vmx_result_t vmx_result = { __vmx_vmread(V, &raw_value) };
+        if (vmx_result.is_success()) {
+            field.storage = static_cast<vmcsf_storage_t<V>>(raw_value);
+        }
+        return vmx_result;
+    }
+
+    template<uint32_t V>
+    [[nodiscard]]
+    vmx_result_t vmx_write(const vmcsf_t<V>& field) noexcept {
+        return { __vmx_vmwrite(V, field.storage) };
     }
 
     [[nodiscard]]
-    inline auto vmx_ptrld(physical_address_t vmcs_region_physical_address) noexcept {
-        return vmx_result_t{ __vmx_vmptrld(&vmcs_region_physical_address) };
+    inline vmx_result_t vmx_launch() noexcept {
+        return { __vmx_vmlaunch() };
     }
 
     [[nodiscard]]
-    inline auto vmx_ptrst() noexcept {
-        physical_address_t vmcs_region_physical_address;
-        __vmx_vmptrst(&vmcs_region_physical_address);
-        return vmcs_region_physical_address;
-    }
-
-    template<vmcs_field_name_e _Vfname>
-    [[nodiscard]]
-    auto vmx_read(vmcs_field_value_t<_Vfname>& field_value) noexcept {
-        size_t value_storage;
-        vmx_result_t vmx_success = { __vmx_vmread(std::to_underlying(_Vfname), &value_storage) };
-
-        field_value.storage = 
-            vmx_success ? static_cast<vmcs_field_storage_t<_Vfname>>(value_storage) : vmcs_field_storage_t<_Vfname>{};
-
-        return vmx_success;
-    }
-
-    template<vmcs_field_name_e _Vfname>
-    [[nodiscard]]
-    auto vmx_write(const vmcs_field_value_t<_Vfname>& field_value) noexcept { 
-        return vmx_result_t{ __vmx_vmwrite(std::to_underlying(_Vfname), field_value.storage) }; 
-    }
-
-    [[nodiscard]]
-    inline auto vmx_launch() noexcept {
-        return vmx_result_t{ __vmx_vmlaunch() };
-    }
-
-    [[nodiscard]]
-    inline auto vmx_resume() noexcept {
-        return vmx_result_t{ __vmx_vmresume() };
+    inline vmx_result_t vmx_resume() noexcept {
+        return { __vmx_vmresume() };
     }
 
     inline void vmx_off() noexcept {
@@ -1620,5 +1598,5 @@ namespace siren::x86 {
     vmx_result_t vmx_invept() noexcept;
 
     [[nodiscard]]
-    vmx_result_t vmx_invept(physical_address_t eptp) noexcept;
+    vmx_result_t vmx_invept(paddr_t eptp) noexcept;
 }

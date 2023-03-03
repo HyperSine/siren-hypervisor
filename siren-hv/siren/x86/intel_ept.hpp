@@ -1,6 +1,6 @@
 #pragma once
-#include "../literals.hpp"
 #include "paging.hpp"
+#include "../literals.hpp"
 
 namespace siren::x86 {
     using namespace ::siren::size_literals;
@@ -38,13 +38,15 @@ namespace siren::x86 {
     static_assert(sizeof(ept_pml4_entry_t::storage) == sizeof(ept_pml4_entry_t::semantics));
 
     struct alignas(4_KiB_size_v) ept_pml4_t {
-        ept_pml4_entry_t entry[4_kb_size_v / sizeof(ept_pml4_entry_t)];
+        ept_pml4_entry_t entries[4_KiB_size_v / sizeof(ept_pml4_entry_t)];
+
+        static constexpr size_t length() noexcept {
+            return std::extent_v<decltype(ept_pml4_t::entries)>;
+        }
     };
 
-    static_assert(alignof(ept_pml4_t) == 4_kb_size_v);
-    static_assert(sizeof(ept_pml4_t) == 4_kb_size_v);
-
-    constexpr size_t ept_pml4_entry_count_v = std::extent_v<decltype(ept_pml4_t::entry)>;
+    static_assert(alignof(ept_pml4_t) == 4_KiB_size_v);
+    static_assert(sizeof(ept_pml4_t) == 4_KiB_size_v);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -107,14 +109,16 @@ namespace siren::x86 {
     static_assert(sizeof(ept_pdpt_entry_t::storage) == 8);
     static_assert(sizeof(ept_pdpt_entry_t::storage) == sizeof(ept_pdpt_entry_t::semantics));
 
-    struct alignas(4_kb_size_v) ept_pdpt_t {
-        ept_pdpt_entry_t entry[4_kb_size_v / sizeof(ept_pdpt_entry_t)];
+    struct alignas(4_KiB_size_v) ept_pdpt_t {
+        ept_pdpt_entry_t entries[4_KiB_size_v / sizeof(ept_pdpt_entry_t)];
+
+        static constexpr size_t length() noexcept {
+            return std::extent_v<decltype(ept_pdpt_t::entries)>;
+        }
     };
 
-    static_assert(alignof(ept_pdpt_t) == 4_kb_size_v);
-    static_assert(sizeof(ept_pdpt_t) == 4_kb_size_v);
-
-    constexpr size_t ept_pdpt_entry_count_v = std::extent_v<decltype(ept_pdpt_t::entry)>;
+    static_assert(alignof(ept_pdpt_t) == 4_KiB_size_v);
+    static_assert(sizeof(ept_pdpt_t) == 4_KiB_size_v);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -177,14 +181,16 @@ namespace siren::x86 {
     static_assert(sizeof(ept_pdt_entry_t::storage) == 8);
     static_assert(sizeof(ept_pdt_entry_t::storage) == sizeof(ept_pdt_entry_t::semantics));
 
-    struct alignas(4_kb_size_v) ept_pdt_t {
-        ept_pdt_entry_t entry[4_kb_size_v / sizeof(ept_pdt_entry_t)];
+    struct alignas(4_KiB_size_v) ept_pdt_t {
+        ept_pdt_entry_t entries[4_KiB_size_v / sizeof(ept_pdt_entry_t)];
+
+        static constexpr size_t length() noexcept {
+            return std::extent_v<decltype(ept_pdt_t::entries)>;
+        }
     };
 
-    static_assert(alignof(ept_pdt_t) == 4_kb_size_v);
-    static_assert(sizeof(ept_pdt_t) == 4_kb_size_v);
-
-    constexpr size_t ept_pdt_entry_count_v = std::extent_v<decltype(ept_pdt_t::entry)>;
+    static_assert(alignof(ept_pdt_t) == 4_KiB_size_v);
+    static_assert(sizeof(ept_pdt_t) == 4_KiB_size_v);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -228,91 +234,17 @@ namespace siren::x86 {
     static_assert(sizeof(ept_pt_entry_t::storage) == 8);
     static_assert(sizeof(ept_pt_entry_t::storage) == sizeof(ept_pt_entry_t::semantics));
 
-    struct alignas(4_kb_size_v) ept_pt_t {
-        ept_pt_entry_t entry[4_kb_size_v / sizeof(ept_pt_entry_t)];
-    };
+    struct alignas(4_KiB_size_v) ept_pt_t {
+        ept_pt_entry_t entry[4_KiB_size_v / sizeof(ept_pt_entry_t)];
 
-    static_assert(alignof(ept_pt_t) == 4_kb_size_v);
-    static_assert(sizeof(ept_pt_t) == 4_kb_size_v);
-
-    constexpr size_t ept_pt_entry_count_v = std::extent_v<decltype(ept_pt_t::entry)>;
-
-    struct guest_physical_address_t {
-        physical_address_t storage;
-
-        constexpr operator physical_address_t() const noexcept {
-            return storage;
-        }
-
-        template<unsigned _Level>
-            requires(1 <= _Level && _Level <= 5)    // only Page-Map-Level 1 ~ 5 is allowed
-        [[nodiscard]]
-        constexpr auto index_of_pml() const noexcept {
-            return static_cast<uint32_t>((storage >> (12u + (_Level - 1u) * 9u)) & 0x1ffu);
-        }
-
-        [[nodiscard]]
-        constexpr auto offset_of_1gb_page() const noexcept {
-            return static_cast<uint32_t>(storage & 1_gb_mask_v);
-        }
-
-        [[nodiscard]]
-        constexpr auto offset_of_2mb_page() const noexcept {
-            return static_cast<uint32_t>(storage & 2_mb_mask_v);
-        }
-
-        [[nodiscard]]
-        constexpr auto offset_of_4kb_page() const noexcept {
-            return static_cast<uint32_t>(storage & 4_kb_mask_v);
-        }
-
-        [[nodiscard]]
-        static constexpr auto for_512gb_region(uint32_t pml4_index) noexcept {
-            return guest_physical_address_t{
-                physical_address_t{ pml4_index & 0x1ffu } << 512_gb_shift_v
-            };
-        }
-
-        [[nodiscard]]
-        static constexpr auto for_1gb_page(uint32_t pml4_index, uint32_t pml3_index, uint32_t page_offset) noexcept {
-            return guest_physical_address_t{
-                physical_address_t{ page_offset & 1_gb_mask_v } |
-                physical_address_t{ pml3_index & 0x1ffu } << 1_gb_shift_v |
-                physical_address_t{ pml4_index & 0x1ffu } << 512_gb_shift_v
-            };
-        }
-
-        [[nodiscard]]
-        static constexpr auto for_1gb_region(uint32_t pml4_index, uint32_t pml3_index) noexcept {
-            return guest_physical_address_t::for_1gb_page(pml4_index, pml3_index, 0);
-        }
-
-        [[nodiscard]]
-        static constexpr auto for_2mb_page(uint32_t pml4_index, uint32_t pml3_index, uint32_t pml2_index, uint32_t page_offset) noexcept {
-            return guest_physical_address_t{
-                physical_address_t{ page_offset & 2_mb_mask_v } |
-                physical_address_t{ pml2_index & 0x1ffu } << 2_mb_shift_v |
-                physical_address_t{ pml3_index & 0x1ffu } << 1_gb_shift_v |
-                physical_address_t{ pml4_index & 0x1ffu } << 512_gb_shift_v
-            };
-        }
-
-        [[nodiscard]]
-        static constexpr auto for_2mb_region(uint32_t pml4_index, uint32_t pml3_index, uint32_t pml2_index) noexcept {
-            return guest_physical_address_t::for_2mb_page(pml4_index, pml3_index, pml2_index, 0);
-        }
-
-        [[nodiscard]]
-        static constexpr auto for_4kb_page(uint32_t pml4_index, uint32_t pml3_index, uint32_t pml2_index, uint32_t pml1_index, uint32_t page_offset) noexcept {
-            return guest_physical_address_t{
-                physical_address_t{ page_offset & 4_kb_mask_v } |
-                physical_address_t{ pml1_index & 0x1ffu } << 4_kb_shift_v |
-                physical_address_t{ pml2_index & 0x1ffu } << 2_mb_shift_v |
-                physical_address_t{ pml3_index & 0x1ffu } << 1_gb_shift_v |
-                physical_address_t{ pml4_index & 0x1ffu } << 512_gb_shift_v
-            };
+        static constexpr size_t length() noexcept {
+            return std::extent_v<decltype(ept_pt_t::entry)>;
         }
     };
 
-    using host_physical_address_t = physical_address_t;
+    static_assert(alignof(ept_pt_t) == 4_KiB_size_v);
+    static_assert(sizeof(ept_pt_t) == 4_KiB_size_v);
+
+    using host_paddr_t = paddr_t;
+    using guest_paddr_t = paddr_t;
 }
