@@ -1,4 +1,5 @@
-#include "siren_new.hpp"
+#include "new.hpp"
+#include "utility.hpp"
 #include <wdm.h>
 
 static_assert(__STDCPP_DEFAULT_NEW_ALIGNMENT__ == MEMORY_ALLOCATION_ALIGNMENT);
@@ -14,13 +15,13 @@ void* operator new(std::size_t size, bool paged, std::align_val_t alignment, con
     //     but are aligned to 8-byte boundaries in 32-bit systems and to 16-byte boundaries in 64-bit systems.
     //
 
-    if (std::to_underlying(alignment) <= MEMORY_ALLOCATION_ALIGNMENT) {
+    if (to_underlying(alignment) <= MEMORY_ALLOCATION_ALIGNMENT) {
         reserved_size = 0;
-    } else if (std::to_underlying(alignment) == PAGE_SIZE) {
-        size = std::max(size, static_cast<std::size_t>(PAGE_SIZE));     // over allocate if `size` less than page size.
+    } else if (to_underlying(alignment) == PAGE_SIZE) {
+        size = std::max<std::size_t>(size, PAGE_SIZE);     // over allocate if `size` less than page size.
         reserved_size = 0;
     } else {
-        reserved_size = std::to_underlying(alignment) - 1 + sizeof(void*);
+        reserved_size = to_underlying(alignment) - 1 + sizeof(void*);
     }
 
     void* p;
@@ -48,13 +49,13 @@ void* operator new(std::size_t size, bool paged, std::align_val_t alignment, con
 #endif
 
     if (p && reserved_size) {
-        auto pp = reinterpret_cast<void**>((reinterpret_cast<uintptr_t>(p) + reserved_size) & ~(std::to_underlying(alignment) - 1));
+        auto pp = reinterpret_cast<void**>((reinterpret_cast<uintptr_t>(p) + reserved_size) & ~(to_underlying(alignment) - 1));
         pp[-1] = p;
         p = pp;
     }
 
     // assert aligned
-    NT_ASSERT((reinterpret_cast<uintptr_t>(p) & (std::to_underlying(alignment) - 1)) == 0);
+    NT_ASSERT((reinterpret_cast<uintptr_t>(p) & (to_underlying(alignment) - 1)) == 0);
 
     return p;
 }
@@ -77,7 +78,7 @@ void operator delete(void* p, std::size_t size) noexcept {
 
 void operator delete(void* p, std::align_val_t alignment) noexcept {
     if (p) {
-        if (std::to_underlying(alignment) <= MEMORY_ALLOCATION_ALIGNMENT || std::to_underlying(alignment) == PAGE_SIZE) {
+        if (to_underlying(alignment) <= MEMORY_ALLOCATION_ALIGNMENT || to_underlying(alignment) == PAGE_SIZE) {
             ExFreePoolWithTag(p, siren::pool_tag_v);
         } else {
             ExFreePoolWithTag(reinterpret_cast<void**>(p)[-1], siren::pool_tag_v);
