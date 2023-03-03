@@ -1,5 +1,6 @@
 #pragma once
-#include "address_space.hpp"
+#include <stdint.h>
+#include "paging.hpp"
 
 namespace siren::x86 {
     struct dr0_long_t {
