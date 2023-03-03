@@ -3,11 +3,11 @@
 #include "../../siren_memory.hpp"
 #include "../../x86/paging.hpp"
 
-namespace siren::hypervisors::vmx {
+namespace siren::vmx {
+    class mshv_hypervisor_t;
+    class mshv_virtual_cpu_t;
 
-    class mshv_virtual_cpu;
-
-    class mshv_hypervisor final : public abstract_hypervisor {
+    class mshv_hypervisor_t final : public hypervisor_t {
     private:
         std::byte* m_hypercall_page;
         x86::physical_address_t m_hypercall_page_physical_address;
@@ -15,12 +15,12 @@ namespace siren::hypervisors::vmx {
         managed_object_ptr<mshv_virtual_cpu[]> m_virtual_cpus;
 
     public:
-        mshv_hypervisor() noexcept;
+        mshv_hypervisor_t() noexcept;
 
-        virtual ~mshv_hypervisor() noexcept override;
+        virtual ~mshv_hypervisor_t() noexcept override;
 
         [[nodiscard]]
-        status_t init() noexcept;
+        status_t intialize() noexcept;
 
         [[nodiscard]]
         virtual implementation_e get_implementation() const noexcept;
@@ -38,5 +38,4 @@ namespace siren::hypervisors::vmx {
 
         virtual void stop() noexcept override;
     };
-
 }
