@@ -10,7 +10,7 @@ namespace siren {
         static constexpr int unlocked_state_v = 0;
         static constexpr int locked_state_v = 1;
 
-        spin_lock_t() noexcept : m_state{ unlocked_state_v } {}
+        constexpr spin_lock_t() noexcept : m_state{ unlocked_state_v } {}
 
         [[nodiscard]]
         bool is_locked() const noexcept {

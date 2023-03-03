@@ -15,8 +15,7 @@ namespace siren {
         static constexpr int executing_state_v = 1;
         static constexpr int already_executed_state_v = 2;
 
-        once_flag_t() noexcept :
-            m_state{ not_executed_state_v } {}
+        constexpr once_flag_t() noexcept : m_state{ not_executed_state_v } {}
 
         template<typename CallableTy, typename... ArgsTy>
             requires std::conjunction_v<std::is_nothrow_invocable<CallableTy>, std::is_same<void, std::invoke_result_t<CallableTy, ArgsTy...>>>
