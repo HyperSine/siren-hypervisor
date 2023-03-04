@@ -1,7 +1,17 @@
 #include "multiprocessor.hpp"
 #include <wdm.h>
 
-namespace siren::x86 {
+namespace siren {
+    void yield_cpu() noexcept {
+        YieldProcessor();
+    }
+
+    void yield_cpu(size_t cycles) noexcept {
+        for (size_t i = 0; i < cycles; ++i) {
+            YieldProcessor();
+        }
+    }
+
     uint32_t active_cpu_count() noexcept {
         return KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     }

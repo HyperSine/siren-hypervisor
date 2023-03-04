@@ -1,9 +1,14 @@
 #pragma once
+#include <stddef.h>
 #include <stdint.h>
 #include <memory>       // use std::addressof
 #include <type_traits>
 
 namespace siren {
+    void yield_cpu() noexcept;
+
+    void yield_cpu(size_t cycles) noexcept;
+
     [[nodiscard]]
     uint32_t active_cpu_count() noexcept;
 
