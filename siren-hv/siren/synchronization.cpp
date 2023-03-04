@@ -1,6 +1,5 @@
-#include "spin_lock.hpp"
+#include "synchronization.hpp"
 #include <wdm.h>
-#include <algorithm>
 
 namespace siren {
     void spin_lock_t::lock() noexcept {
