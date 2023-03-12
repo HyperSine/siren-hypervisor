@@ -2,9 +2,7 @@
 #include "tlfs.hpp"
 
 namespace siren::microsoft_hv {
-
     namespace hypercalls {
-
         enum class call_code_e : uint16_t {
             HvSwitchVirtualAddressSpace = 0x0001,
             HvFlushVirtualAddressSpace = 0x0002,
@@ -209,7 +207,5 @@ namespace siren::microsoft_hv {
 
         //[[nodiscard]]
         //result_value_t flush_guest_physical_address_list(spa_t address_space, /*todo*/) noexcept;
-
     }
-
 }

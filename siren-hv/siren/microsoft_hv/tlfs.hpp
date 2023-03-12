@@ -1,7 +1,10 @@
 #pragma once
-#include "../siren_global.hpp"
+#include <stddef.h>
+#include <stdint.h>
+#include "../literals.hpp"
 
 namespace siren::microsoft_hv {
+    using namespace ::siren::size_literals;
 
     using spa_t = uint64_t;
     using gpa_t = uint64_t;
@@ -130,7 +133,7 @@ namespace siren::microsoft_hv {
     static_assert(alignof(virtualization_fault_info_t) == 8);
     static_assert(sizeof(virtualization_fault_info_t) == 16);
 
-    struct alignas(4_kb_size_v) vp_assist_page_t {
+    struct alignas(4_KiB_size_v) vp_assist_page_t {
         //
         // APIC assist for optimized EOI processing.
         //
@@ -155,7 +158,7 @@ namespace siren::microsoft_hv {
         virtualization_fault_info_t virtualization_fault_information;
     };
 
-    static_assert(sizeof(vp_assist_page_t) == 4_kb_size_v);
+    static_assert(sizeof(vp_assist_page_t) == 4_KiB_size_v);
     static_assert(offsetof(vp_assist_page_t, apic_assist) == 0);
     static_assert(offsetof(vp_assist_page_t, vtl_control) == 8);
     static_assert(offsetof(vp_assist_page_t, nested_enlightenments_control) == 0x20);
@@ -163,9 +166,9 @@ namespace siren::microsoft_hv {
     static_assert(offsetof(vp_assist_page_t, current_nested_vmcs) == 0x30);
     static_assert(offsetof(vp_assist_page_t, synthetic_time_unhalted_timer_expired) == 0x38);
     static_assert(offsetof(vp_assist_page_t, virtualization_fault_information) == 0x40);
-    static_assert(alignof(vp_assist_page_t) == 4_kb_size_v);
+    static_assert(alignof(vp_assist_page_t) == 4_KiB_size_v);
 
-    struct alignas(4_kb_size_v) vmx_enlightened_vmcs_t {
+    struct alignas(4_KiB_size_v) vmx_enlightened_vmcs_t {
         uint32_t version_number;
         uint32_t abort_indicator;
 
@@ -293,7 +296,7 @@ namespace siren::microsoft_hv {
         uint64_t host_rsp;
 
         uint64_t ctrl_ept_pointer;
-        uint16_t ctrl_virtual_processor_identifier;
+        uint16_t ctrl_vpid;
 
         uint16_t reserved2[3];
         uint64_t reserved3[5];
@@ -387,14 +390,13 @@ namespace siren::microsoft_hv {
         uint64_t reserved8;
     };
 
-    static_assert(sizeof(vmx_enlightened_vmcs_t) <= 4_kb_size_v);
-    static_assert(alignof(vmx_enlightened_vmcs_t) == 4_kb_size_v);
+    static_assert(sizeof(vmx_enlightened_vmcs_t) <= 4_KiB_size_v);
+    static_assert(alignof(vmx_enlightened_vmcs_t) == 4_KiB_size_v);
 
-    struct alignas(4_kb_size_v) partition_assist_page_t {
+    struct alignas(4_KiB_size_v) partition_assist_page_t {
         uint32_t tlb_lock_count;
     };
 
-    static_assert(sizeof(partition_assist_page_t) <= 4_kb_size_v);
-    static_assert(alignof(partition_assist_page_t) == 4_kb_size_v);
-
+    static_assert(sizeof(partition_assist_page_t) <= 4_KiB_size_v);
+    static_assert(alignof(partition_assist_page_t) == 4_KiB_size_v);
 }

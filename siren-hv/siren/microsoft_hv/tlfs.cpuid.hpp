@@ -2,7 +2,6 @@
 #include "../x86/cpuid.hpp"
 
 namespace siren::x86 {
-
     template<>
     struct cpuid_result_t<0x40000000> {
         union {
@@ -101,5 +100,4 @@ namespace siren::x86 {
 
     static_assert(sizeof(cpuid_result_t<0x40000003>) == 16);
     static_assert(sizeof(cpuid_result_t<0x40000003>::storage) == sizeof(cpuid_result_t<0x40000003>::semantics));
-
 }

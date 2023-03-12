@@ -1,5 +1,5 @@
-#include <ntddk.h>
 #include "tlfs.hypercalls.hpp"
+#include <ntddk.h>
 
 extern "C" {
     NTKERNELAPI UINT64 NTAPI HvlInvokeHypercall(UINT64 InputValue, PHYSICAL_ADDRESS InputBlockPa, PHYSICAL_ADDRESS OutputBlockPa);
@@ -7,9 +7,7 @@ extern "C" {
 }
 
 namespace siren::microsoft_hv {
-
     namespace hypercalls {
-
         [[nodiscard]]
         result_value_t flush_virtual_address_space(address_space_id_t address_space, flush_flags_t flags, uint64_t processor_mask) noexcept {
             UINT64 input_block[3];
@@ -44,7 +42,5 @@ namespace siren::microsoft_hv {
 
             return result_value_t{ .storage = HvlInvokeFastExtendedHypercall(input_value.storage, &input_block, sizeof(input_block), nullptr, 0) };
         }
-
     }
-
 }
