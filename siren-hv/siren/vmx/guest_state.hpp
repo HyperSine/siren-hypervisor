@@ -1,11 +1,9 @@
 #pragma once
-#include "../../siren_global.hpp"
-#include "../../x86/flags_register.hpp"
-#include "../../x86/simd_registers.hpp"
+#include "../x86/flags_register.hpp"
+#include "../x86/simd_registers.hpp"
 
-namespace siren::hypervisors::vmx {
-
-    struct guest_registers_t {
+namespace siren::vmx {
+    struct guest_state_t {
         //union { struct { uint8_t al; uint8_t ah; }; uint16_t ax; uint32_t eax; uint64_t rax; };
         //union { struct { uint8_t cl; uint8_t ch; }; uint16_t cx; uint32_t ecx; uint64_t rcx; };
         //union { struct { uint8_t dl; uint8_t dh; }; uint16_t dx; uint32_t edx; uint64_t rdx; };
@@ -60,6 +58,5 @@ namespace siren::hypervisors::vmx {
         x86::xmm_t xmm15;
     };
 
-    static_assert(alignof(guest_registers_t) == alignof(x86::xmm_t));
-
+    static_assert(alignof(guest_state_t) == alignof(x86::xmm_t));
 }

@@ -1,8 +1,8 @@
 .CODE
 
-EXTERN ?dispatcher@mshv_vmexit_handler@vmx@hypervisors@siren@@CA_NPEAVmshv_virtual_cpu@234@PEAUguest_registers_t@234@@Z: PROC
+EXTERN ?dispatch@mshv_vmexit_handler_t@vmx@siren@@CA_NPEAVmshv_virtual_cpu_t@23@PEAUguest_state_t@23@@Z: PROC
 
-?entry@mshv_vmexit_handler@vmx@hypervisors@siren@@SAXXZ PROC
+?entry_point@mshv_vmexit_handler_t@vmx@siren@@SAXXZ PROC
     sub rsp, 100h                           ; 100h -> 16 * sizeof(xmm register)
     movaps xmmword ptr [rsp], xmm0
     movaps xmmword ptr [rsp + 10h], xmm1
@@ -43,7 +43,7 @@ EXTERN ?dispatcher@mshv_vmexit_handler@vmx@hypervisors@siren@@CA_NPEAVmshv_virtu
     mov rdx, rsp
     mov rcx, qword ptr [rsp + 190h]
     sub rsp, 20h    ; allocate shadow space
-    call ?dispatcher@mshv_vmexit_handler@vmx@hypervisors@siren@@CA_NPEAVmshv_virtual_cpu@234@PEAUguest_registers_t@234@@Z
+    call ?dispatch@mshv_vmexit_handler_t@vmx@siren@@CA_NPEAVmshv_virtual_cpu_t@23@PEAUguest_state_t@23@@Z
     add rsp, 20h
 
     test al, al
@@ -127,18 +127,18 @@ stop_virtualization:
         pop r15
         popfq
         ret
-?entry@mshv_vmexit_handler@vmx@hypervisors@siren@@SAXXZ ENDP
+?entry_point@mshv_vmexit_handler_t@vmx@siren@@SAXXZ ENDP
 
-?microsoft_hypercall@mshv_vmexit_handler@vmx@hypervisors@siren@@CA?AUresult_value_t@hypercalls@microsoft_hv@4@PEBXUinput_value_t@674@_K2@Z PROC
+?microsoft_hypercall@mshv_vmexit_handler_t@vmx@siren@@CA?AUresult_value_t@hypercalls@microsoft_hv@3@PEBXUinput_value_t@563@_K2@Z PROC
     mov rax, rcx
     mov rcx, rdx
     mov rdx, r8
     mov r8, r9
     call rax
     ret
-?microsoft_hypercall@mshv_vmexit_handler@vmx@hypervisors@siren@@CA?AUresult_value_t@hypercalls@microsoft_hv@4@PEBXUinput_value_t@674@_K2@Z ENDP
+?microsoft_hypercall@mshv_vmexit_handler_t@vmx@siren@@CA?AUresult_value_t@hypercalls@microsoft_hv@3@PEBXUinput_value_t@563@_K2@Z ENDP
 
-?microsoft_fast_hypercall_ex@mshv_vmexit_handler@vmx@hypervisors@siren@@CA?AUresult_value_t@hypercalls@microsoft_hv@4@PEBXUinput_value_t@674@PEAX@Z PROC
+?microsoft_fast_hypercall_ex@mshv_vmexit_handler_t@vmx@siren@@CA?AUresult_value_t@hypercalls@microsoft_hv@3@PEBXUinput_value_t@563@PEAX@Z PROC
     push rbx
     mov rax, rcx
     mov rcx, rdx
@@ -166,6 +166,6 @@ stop_virtualization:
 
     pop rbx
     ret
-?microsoft_fast_hypercall_ex@mshv_vmexit_handler@vmx@hypervisors@siren@@CA?AUresult_value_t@hypercalls@microsoft_hv@4@PEBXUinput_value_t@674@PEAX@Z ENDP
+?microsoft_fast_hypercall_ex@mshv_vmexit_handler_t@vmx@siren@@CA?AUresult_value_t@hypercalls@microsoft_hv@3@PEBXUinput_value_t@563@PEAX@Z ENDP
 
 END
