@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "concepts.hpp"
 #include "utility.hpp"
 
 namespace siren {
@@ -18,7 +19,7 @@ namespace siren {
         static constexpr uint32_t facility_ntcert_v = 0x8;
         static constexpr uint32_t facility_ntsspi_v = 0x9;
         static constexpr uint32_t facility_terminal_server_v = 0xa;
-        static constexpr uint32_t faciltiy_mui_error_code_v = 0xb;
+        static constexpr uint32_t facility_mui_error_code_v = 0xb;
         static constexpr uint32_t facility_usb_error_code_v = 0x10;
         static constexpr uint32_t facility_hid_error_code_v = 0x11;
         static constexpr uint32_t facility_firewire_error_code_v = 0x12;
@@ -113,5 +114,17 @@ namespace siren {
         constexpr bool is_success() const noexcept {
             return range_bits_t<uint32_t, 31, 32>::extract_from(value).value() == 0;
         }
+
+        template<integral_exact<32> Ty>
+        [[nodiscard]]
+        static constexpr nt_status from(Ty value) noexcept {
+            return { static_cast<uint32_t>(value) };
+        }
     };
+
+    static_assert(std::is_aggregate_v<nt_status>);
+
+    constexpr nt_status nt_status_success_v = { 0x00000000u };
+    constexpr nt_status nt_status_not_implemented_v = { 0xc0000002u };
+    constexpr nt_status nt_status_invalid_parameter_v = { 0xc000000du };
 }
