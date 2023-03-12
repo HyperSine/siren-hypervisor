@@ -141,10 +141,10 @@ namespace siren::x86 {
         static constexpr vmcsf_encoding_t from(uint32_t value) noexcept {
             return vmcsf_encoding_t{
                 .semantics = { 
-                    .access = range_bits_t<uint32_t, 0, 1>::from_integral(value).storage,
-                    .index  = range_bits_t<uint32_t, 1, 10>::from_integral(value).storage,
-                    .type   = range_bits_t<uint32_t, 10, 12>::from_integral(value).storage,
-                    .width  = range_bits_t<uint32_t, 13, 15>::from_integral(value).storage
+                    .access = range_bits_t<uint32_t, 0, 1>::extract_from(value).value(),
+                    .index  = range_bits_t<uint32_t, 1, 10>::extract_from(value).value(),
+                    .type   = range_bits_t<uint32_t, 10, 12>::extract_from(value).value(),
+                    .width  = range_bits_t<uint32_t, 13, 15>::extract_from(value).value()
                 }
             };
         }
@@ -153,10 +153,10 @@ namespace siren::x86 {
         static constexpr vmcsf_encoding_t from(vmcsf_access_e access, uint32_t index, vmcsf_type_e type, vmcsf_width_e width) noexcept {
             return vmcsf_encoding_t{
                 .storage = 
-                    range_bits_t<uint32_t, 0, 1>{ to_underlying(access) }.to_integral() |
-                    range_bits_t<uint32_t, 1, 10>{ index }.to_integral() |
-                    range_bits_t<uint32_t, 10, 12>{ to_underlying(type) }.to_integral() |
-                    range_bits_t<uint32_t, 13, 15>{ to_underlying(width) }.to_integral()
+                    range_bits_t<uint32_t, 0, 1>{ std::to_underlying(access) }.as_integral() |
+                    range_bits_t<uint32_t, 1, 10>{ index }.as_integral() |
+                    range_bits_t<uint32_t, 10, 12>{ std::to_underlying(type) }.as_integral() |
+                    range_bits_t<uint32_t, 13, 15>{ std::to_underlying(width) }.as_integral()
             };
         }
     };
@@ -174,10 +174,10 @@ namespace siren::x86 {
     //   B.1.1 16-Bit CONTROL Fields
     // -------------------------------
 
-    constexpr uint32_t VMCSF_CTRL_VPID                              = SIREN_ENCODE_VMCS_FIELD(FULL, 0, CONTROL, WORD);
-    constexpr uint32_t VMCSF_CTRL_POSTED_INTR_NOTIFICATION_VECTOR   = SIREN_ENCODE_VMCS_FIELD(FULL, 1, CONTROL, WORD);
-    constexpr uint32_t VMCSF_CTRL_EPTP_INDEX                        = SIREN_ENCODE_VMCS_FIELD(FULL, 2, CONTROL, WORD);
-    constexpr uint32_t VMCSF_CTRL_HLAT_PREFIX_SIZE                  = SIREN_ENCODE_VMCS_FIELD(FULL, 3, CONTROL, WORD);
+    constexpr uint32_t VMCSF_CTRL_VPID                                  = SIREN_ENCODE_VMCS_FIELD(FULL, 0, CONTROL, WORD);
+    constexpr uint32_t VMCSF_CTRL_POSTED_INTERRUPT_NOTIFICATION_VECTOR  = SIREN_ENCODE_VMCS_FIELD(FULL, 1, CONTROL, WORD);
+    constexpr uint32_t VMCSF_CTRL_EPTP_INDEX                            = SIREN_ENCODE_VMCS_FIELD(FULL, 2, CONTROL, WORD);
+    constexpr uint32_t VMCSF_CTRL_HLAT_PREFIX_SIZE                      = SIREN_ENCODE_VMCS_FIELD(FULL, 3, CONTROL, WORD);
 
     // -----------------------------------
     //   B.1.2 16-Bit GUEST-State Fields
@@ -468,10 +468,10 @@ namespace siren::x86 {
 
     template<uint32_t V, vmcsf_encoding_t E = vmcsf_encoding_t::from(V)>
     using vmcsf_storage_t = 
-        std::conditional_t<E.semantics.width == to_underlying(vmcsf_width_e::WORD), uint16_t,
-            std::conditional_t<E.semantics.width == to_underlying(vmcsf_width_e::DWORD), uint32_t,
-                std::conditional_t<E.semantics.width == to_underlying(vmcsf_width_e::QWORD), std::conditional_t<E.semantics.access == to_underlying(vmcsf_access_e::HIGH), uint32_t, uint64_t>,
-                    std::conditional_t<E.semantics.width == to_underlying(vmcsf_width_e::NATURAL), uintptr_t, void>
+        std::conditional_t<E.semantics.width == std::to_underlying(vmcsf_width_e::WORD), uint16_t,
+            std::conditional_t<E.semantics.width == std::to_underlying(vmcsf_width_e::DWORD), uint32_t,
+                std::conditional_t<E.semantics.width == std::to_underlying(vmcsf_width_e::QWORD), std::conditional_t<E.semantics.access == std::to_underlying(vmcsf_access_e::HIGH), uint32_t, uint64_t>,
+                    std::conditional_t<E.semantics.width == std::to_underlying(vmcsf_width_e::NATURAL), uintptr_t, void>
                 >
             >
         >;
