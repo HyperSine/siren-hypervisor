@@ -44,29 +44,29 @@ namespace siren {
     concept aligned_least = alignof(Ty) >= Alignment;
 
     template<typename Ty, size_t Bits>
-    concept integral_exact = std::integral<Ty> && std::numeric_limits<Ty>::digits == Bits;
+    concept integral_exact = std::integral<Ty> && sizeof(Ty) * CHAR_BIT == Bits;
 
     template<typename Ty, size_t Bits>
-    concept integral_most = std::integral<Ty> && std::numeric_limits<Ty>::digits <= Bits;
+    concept integral_most = std::integral<Ty> && sizeof(Ty) * CHAR_BIT <= Bits;
 
     template<typename Ty, size_t Bits>
-    concept integral_least = std::integral<Ty> && std::numeric_limits<Ty>::digits >= Bits;
+    concept integral_least = std::integral<Ty> && sizeof(Ty) * CHAR_BIT >= Bits;
 
     template<typename Ty, size_t Bits = 0>
-    concept signed_integral_exact = std::signed_integral<Ty> && std::numeric_limits<Ty>::digits == Bits;
+    concept signed_integral_exact = std::signed_integral<Ty> && sizeof(Ty) * CHAR_BIT == Bits;
 
     template<typename Ty, size_t Bits>
-    concept signed_integral_most = std::signed_integral<Ty> && std::numeric_limits<Ty>::digits <= Bits;
+    concept signed_integral_most = std::signed_integral<Ty> && sizeof(Ty) * CHAR_BIT <= Bits;
 
     template<typename Ty, size_t Bits>
-    concept signed_integral_least = std::signed_integral<Ty> && std::numeric_limits<Ty>::digits >= Bits;
+    concept signed_integral_least = std::signed_integral<Ty> && sizeof(Ty) * CHAR_BIT >= Bits;
 
     template<typename Ty, size_t Bits>
-    concept unsigned_integral_exact = std::unsigned_integral<Ty> && std::numeric_limits<Ty>::digits == Bits;
+    concept unsigned_integral_exact = std::unsigned_integral<Ty> && sizeof(Ty) * CHAR_BIT == Bits;
 
     template<typename Ty, size_t Bits>
-    concept unsigned_integral_most = std::unsigned_integral<Ty> && std::numeric_limits<Ty>::digits <= Bits;
+    concept unsigned_integral_most = std::unsigned_integral<Ty> && sizeof(Ty) * CHAR_BIT <= Bits;
 
     template<typename Ty, size_t Bits>
-    concept unsigned_integral_least = std::unsigned_integral<Ty> && std::numeric_limits<Ty>::digits >= Bits;
+    concept unsigned_integral_least = std::unsigned_integral<Ty> && sizeof(Ty) * CHAR_BIT >= Bits;
 }
