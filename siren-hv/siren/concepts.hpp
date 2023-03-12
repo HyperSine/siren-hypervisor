@@ -22,16 +22,16 @@ namespace siren {
     template<template<typename Ty> typename TraitTy, typename... Tys>
     concept some_unsatisfy = !all_satisfy<TraitTy, Tys...>;
 
-    template<typename Ty, template<typename Ty> typename... TraitTys>
+    template<typename Ty, template<typename> typename... TraitTys>
     concept satisfy_all = std::conjunction_v<TraitTys<Ty>...>;
 
-    template<typename Ty, template<typename Ty> typename... TraitTys>
+    template<typename Ty, template<typename> typename... TraitTys>
     concept satisfy_none = std::conjunction_v<std::negation<TraitTys<Ty>>...>;
 
-    template<typename Ty, template<typename Ty> typename... TraitTys>
+    template<typename Ty, template<typename> typename... TraitTys>
     concept satisfy_some = !satisfy_none<Ty, TraitTys...>;
 
-    template<typename Ty, template<typename Ty> typename... TraitTys>
+    template<typename Ty, template<typename> typename... TraitTys>
     concept unsatisfy_some = !satisfy_all<Ty, TraitTys...>;
 
     template<typename Ty, size_t Alignment>
@@ -69,4 +69,53 @@ namespace siren {
 
     template<typename Ty, size_t Bits>
     concept unsigned_integral_least = std::unsigned_integral<Ty> && sizeof(Ty) * CHAR_BIT >= Bits;
+
+    template<typename Ty>
+    concept non_dimensional = !std::is_array_v<Ty>;
+
+    template<typename Ty>
+    concept one_dimensional = std::rank_v<Ty> == 1;
+
+    template<typename Ty>
+    concept multi_dimensional = std::rank_v<Ty> > 1;
+
+    template<typename Ty>
+    concept decayed = std::same_as<Ty, std::decay_t<Ty>>;
+
+    template<typename Ty>
+    concept const_qualified = std::same_as<Ty, std::add_const_t<Ty>>;
+
+    template<typename Ty>
+    concept volatile_qualified = std::same_as<Ty, std::add_volatile_t<Ty>>;
+
+    template<typename Ty>
+    concept cv_qualified = std::same_as<Ty, std::add_cv_t<Ty>>;
+
+    template<typename Ty>
+    concept no_const_qualified = std::same_as<Ty, std::remove_const_t<Ty>>;
+
+    template<typename Ty>
+    concept no_volatile_qualified = std::same_as<Ty, std::remove_volatile_t<Ty>>;
+
+    template<typename Ty>
+    concept no_cv_qualified = std::same_as<Ty, std::remove_cv_t<Ty>>;
+
+    template<typename Ty, template<typename> typename... ModifierTys>
+    struct _Type_modification_compose;
+
+    template<typename Ty, template<typename> typename FirstModifierTy>
+    struct _Type_modification_compose<Ty, FirstModifierTy> {
+        using type = typename FirstModifierTy<Ty>::type;
+    };
+
+    template<typename Ty, template<typename> typename FirstModifierTy, template<typename> typename... LeftModifierTy>
+    struct _Type_modification_compose<Ty, FirstModifierTy, LeftModifierTy...> {
+        using type = typename _Type_modification_compose<typename FirstModifierTy<Ty>::type, LeftModifierTy...>::type;
+    };
+
+    template<typename Ty, template<typename> typename... ModifierTys>
+    concept same_after = std::same_as<Ty, typename _Type_modification_compose<Ty, ModifierTys...>::type>;
+
+    template<typename Ty, typename Uy, template<typename> typename... ModifierTys>
+    concept same_as_after = std::same_as<Uy, typename _Type_modification_compose<Ty, ModifierTys...>::type>;
 }
