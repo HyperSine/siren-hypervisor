@@ -33,13 +33,13 @@ namespace siren {
                 size = std::max<std::size_t>(size, PAGE_SIZE);     // over allocate if `size` less than page size.
                 reserved_size = 0;
             } else {
-                status = nt_status::from(RtlSizeTAdd(std::to_underlying(alignment) - 1, sizeof(void*), &reserved_size));  // `alignment - 1` never overflows
+                status = nt_status::cast_from(RtlSizeTAdd(std::to_underlying(alignment) - 1, sizeof(void*), &reserved_size));  // `alignment - 1` never overflows
                 if (!status.is_success()) {
                     return unexpected{ status };
                 }
             }
 
-            status = nt_status::from(RtlSizeTAdd(reserved_size, size, &allocate_size));
+            status = nt_status::cast_from(RtlSizeTAdd(reserved_size, size, &allocate_size));
             if (!status.is_success()) {
                 return unexpected{ status };
             }
@@ -84,7 +84,7 @@ namespace siren {
         [[nodiscard]]
         static expected<void*, nt_status> allocate(std::size_t size, std::size_t count, std::align_val_t alignment) noexcept {
             std::size_t total_size;
-            auto status = nt_status::from(RtlSizeTMult(size, count, &total_size));
+            auto status = nt_status::cast_from(RtlSizeTMult(size, count, &total_size));
             if (status.is_success()) {
                 return allocate(total_size, alignment);
             } else {

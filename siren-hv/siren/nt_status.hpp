@@ -117,8 +117,8 @@ namespace siren {
 
         template<integral_exact<32> Ty>
         [[nodiscard]]
-        static constexpr nt_status from(Ty value) noexcept {
-            return { static_cast<uint32_t>(value) };
+        static constexpr nt_status cast_from(Ty value) noexcept {
+            return nt_status{ static_cast<uint32_t>(value) };
         }
     };
 
