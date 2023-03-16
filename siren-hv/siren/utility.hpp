@@ -119,4 +119,37 @@ namespace siren {
             return { (integral >> shift) & mask };
         }
     };
+
+    template<std::unsigned_integral Ty>
+    struct mask_region_t {
+        Ty base;
+        Ty mask;
+
+        [[nodiscard]]
+        constexpr bool contains(Ty value) const noexcept {
+            return (base & mask) == (value & mask);
+        }
+
+        // return true iff any address that is contained by `other` region is also contained by `this` region
+        [[nodiscard]]
+        constexpr bool contains(mask_region_t other) const noexcept {
+            Ty union_mask = mask | other.mask;
+            Ty intersect_mask = mask & other.mask;
+            return (base & intersect_mask) == (other.base & intersect_mask) && union_mask == other.mask;
+        }
+
+        // return true iff any address that is contained by `other` region is NOT contained by `this` region
+        [[nodiscard]]
+        constexpr bool disjoints(mask_region_t other) const noexcept {
+            Ty intersect_mask = mask & other.mask;
+            return (base & intersect_mask) != (other.base & intersect_mask);
+        }
+
+        // return true iff there exists an address that is contained by `other` region and is also contained by `this` region
+        [[nodiscard]]
+        constexpr bool intersects(mask_region_t other) const noexcept {
+            Ty intersect_mask = mask & other.mask;
+            return (base & intersect_mask) == (other.base & intersect_mask);
+        }
+    };
 }
