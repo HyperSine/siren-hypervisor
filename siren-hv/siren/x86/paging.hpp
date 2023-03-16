@@ -16,9 +16,74 @@ namespace siren::x86 {
     using lgaddr32_t = uint32_t;    // 32-bits logical address
     using lgaddr64_t = uint64_t;    // 64-bits logical address
 
-    using vaddr_t = uintptr_t;      // virtual address, Aka. logical address
-    using vaddr32_t = uint32_t;     // 32-bits virtual address
-    using vaddr64_t = uint64_t;     // 64-bits virtual address
+    using vaddr_t = lgaddr_t;       // virtual address, Aka. logical address
+    using vaddr32_t = lgaddr32_t;   // 32-bits virtual address
+    using vaddr64_t = lgaddr64_t;   // 64-bits virtual address
+
+    namespace address_literals {
+        [[nodiscard]]
+        consteval paddr_t operator""_paddr_v(unsigned long long int x) noexcept {
+            if (x <= std::numeric_limits<paddr_t>::max()) {
+                return static_cast<paddr_t>(x);
+            }
+        }
+
+        [[nodiscard]]
+        consteval paddr_t operator""_laddr32_v(unsigned long long int x) noexcept {
+            if (x <= std::numeric_limits<laddr32_t>::max()) {
+                return static_cast<laddr32_t>(x);
+            }
+        }
+
+        [[nodiscard]]
+        consteval paddr_t operator""_laddr64_v(unsigned long long int x) noexcept {
+            if (x <= std::numeric_limits<laddr64_t>::max()) {
+                return static_cast<laddr64_t>(x);
+            }
+        }
+
+        [[nodiscard]]
+        consteval paddr_t operator""_lgaddr_v(unsigned long long int x) noexcept {
+            if (x <= std::numeric_limits<lgaddr_t>::max()) {
+                return static_cast<lgaddr_t>(x);
+            }
+        }
+
+        [[nodiscard]]
+        consteval paddr_t operator""_lgaddr32_v(unsigned long long int x) noexcept {
+            if (x <= std::numeric_limits<lgaddr32_t>::max()) {
+                return static_cast<lgaddr32_t>(x);
+            }
+        }
+
+        [[nodiscard]]
+        consteval paddr_t operator""_lgaddr64_v(unsigned long long int x) noexcept {
+            if (x <= std::numeric_limits<lgaddr64_t>::max()) {
+                return static_cast<lgaddr64_t>(x);
+            }
+        }
+
+        [[nodiscard]]
+        consteval paddr_t operator""_vaddr_v(unsigned long long int x) noexcept {
+            if (x <= std::numeric_limits<vaddr_t>::max()) {
+                return static_cast<vaddr_t>(x);
+            }
+        }
+
+        [[nodiscard]]
+        consteval paddr_t operator""_vaddr32_v(unsigned long long int x) noexcept {
+            if (x <= std::numeric_limits<vaddr32_t>::max()) {
+                return static_cast<vaddr32_t>(x);
+            }
+        }
+
+        [[nodiscard]]
+        consteval paddr_t operator""_vaddr64_v(unsigned long long int x) noexcept {
+            if (x <= std::numeric_limits<vaddr64_t>::max()) {
+                return static_cast<vaddr64_t>(x);
+            }
+        }
+    }
 
     using on_4KiB_page_t = std::ratio<4_KiB_size_v>;
     using on_4MiB_page_t = std::ratio<4_MiB_size_v>;
@@ -181,4 +246,7 @@ namespace siren::x86 {
             uint64_t{ pml4 & pml_mask } << std::countr_zero(512_GiB_size_v)
         };
     }
+
+    [[nodiscard]]
+    paddr_t get_max_physical_address() noexcept;
 }
