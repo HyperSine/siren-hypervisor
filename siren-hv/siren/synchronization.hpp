@@ -1,6 +1,5 @@
 #pragma once
 #include <atomic>
-#include <mutex>
 #include <type_traits>
 #include "multiprocessor.hpp"
 
@@ -11,13 +10,17 @@ namespace siren {
 
     public:
         static constexpr int state_unlocked_v = 0;
-        static constexpr int state_locked_v = 1;
 
         constexpr spin_lock() noexcept : m_state{ state_unlocked_v } {}
 
         [[nodiscard]]
         bool is_locked() const noexcept {
-            return m_state == state_locked_v;
+            return m_state.load(std::memory_order_relaxed) < state_unlocked_v;
+        }
+
+        [[nodiscard]]
+        bool is_locked_shared() const noexcept {
+            return m_state.load(std::memory_order_relaxed) > state_unlocked_v;
         }
 
         [[nodiscard]]
@@ -27,8 +30,16 @@ namespace siren {
 
         [[nodiscard]]
         bool try_lock() noexcept {
+            int state = m_state.load(std::memory_order_acquire);
             int expected = state_unlocked_v;
-            return m_state == state_unlocked_v && m_state.compare_exchange_weak(expected, state_locked_v, std::memory_order_acquire);
+            return state == expected && m_state.compare_exchange_weak(expected, -1, std::memory_order_acquire);
+        }
+
+        [[nodiscard]]
+        bool try_lock_shared() noexcept {
+            int state = m_state.load(std::memory_order_acquire);
+            int next_state = state + 1;
+            return state < next_state && state >= state_unlocked_v && m_state.compare_exchange_weak(state, next_state, std::memory_order_acquire);
         }
 
         void lock() noexcept {
@@ -40,7 +51,22 @@ namespace siren {
                     yield_cpu();
                 }
 
-                // Don't call "pause" too many times. If the wait becomes too big,
+                // Don't call `yield_cpu` too many times. If the `wait` becomes too big,
+                // clamp it to the max_wait.
+                wait = std::min<unsigned>(wait * 2, max_wait);
+            }
+        }
+
+        void lock_shared() noexcept {
+            unsigned wait = 0;
+            constexpr unsigned max_wait = 65536;    // inspired by https://rayanfam.com/topics/hypervisor-from-scratch-part-8/#designing-a-spinlock
+
+            while (!try_lock_shared()) {
+                for (unsigned i = 0; i < wait; ++i) {
+                    yield_cpu();
+                }
+
+                // Don't call `yield_cpu` too many times. If the `wait` becomes too big,
                 // clamp it to the max_wait.
                 wait = std::min<unsigned>(wait * 2, max_wait);
             }
@@ -48,6 +74,10 @@ namespace siren {
 
         void unlock() noexcept {
             m_state.store(state_unlocked_v, std::memory_order_release);
+        }
+        
+        void unlock_shared() noexcept {
+            m_state.fetch_sub(1, std::memory_order_release);
         }
     };
 
@@ -81,6 +111,136 @@ namespace siren {
                 // clamp it to the max_wait.
                 wait = std::min<unsigned>(wait * 2, max_wait);
             }
+        }
+    };
+
+    struct adopt_lock_t {};
+    struct defer_lock_t {};
+    struct try_to_lock_t {};
+
+    template<typename LockerTy>
+    class lock_guard {
+    private:
+        LockerTy& m_locker;
+        bool m_owns;
+
+    public:
+        lock_guard(LockerTy& locker) noexcept 
+            : m_locker{ locker }, m_owns{ false }
+        {
+            m_locker.lock();
+            m_owns = true;
+        }
+
+        lock_guard(LockerTy& locker, std::adopt_lock_t) noexcept
+            : m_locker{ locker }, m_owns{ true } {}
+
+        lock_guard(LockerTy& locker, std::defer_lock_t) noexcept
+            : m_locker{ locker }, m_owns{ false } {}
+
+        lock_guard(LockerTy& locker, std::defer_lock_t) noexcept
+            : m_locker{ locker }, m_owns{ m_locker.try_lock() } {}
+
+        lock_guard(const lock_guard&) = delete;
+
+        lock_guard(lock_guard&&) noexcept = delete;
+
+        lock_guard& operator=(const lock_guard&) = delete;
+
+        lock_guard& operator=(lock_guard&&) noexcept = delete;
+
+        ~lock_guard() noexcept {
+            if (m_owns) {
+                m_locker.unlock();
+            }
+        }
+
+        void lock() noexcept {
+            if (!m_owns) {
+                m_locker.lock();
+                m_owns = true;
+            }
+        }
+
+        bool try_lock() noexcept {
+            if (!m_owns) {
+                m_owns = m_locker.try_lock();
+            }
+            return m_owns;
+        }
+
+        void unlock() noexcept {
+            if (m_owns) {
+                m_locker.unlock();
+                m_owns = false;
+            }
+        }
+
+        bool owns_lock() const noexcept {
+            return m_owns;
+        }
+    };
+
+    template<typename LockerTy>
+    class shared_lock_guard {
+    private:
+        LockerTy& m_locker;
+        bool m_owns;
+
+    public:
+        shared_lock_guard(LockerTy& locker) noexcept
+            : m_locker{ locker }, m_owns{ false }
+        {
+            m_locker.lock();
+            m_owns = true;
+        }
+
+        shared_lock_guard(LockerTy& locker, adopt_lock_t) noexcept
+            : m_locker{ locker }, m_owns{ true } {}
+
+        shared_lock_guard(LockerTy& locker, defer_lock_t) noexcept
+            : m_locker{ locker }, m_owns{ false } {}
+
+        shared_lock_guard(LockerTy& locker, try_to_lock_t) noexcept
+            : m_locker{ locker }, m_owns{ m_locker.try_lock_shared() } {}
+
+        shared_lock_guard(const shared_lock_guard&) = delete;
+
+        shared_lock_guard(shared_lock_guard&&) noexcept = delete;
+
+        shared_lock_guard& operator=(const shared_lock_guard&) = delete;
+
+        shared_lock_guard& operator=(shared_lock_guard&&) noexcept = delete;
+
+        ~shared_lock_guard() noexcept {
+            if (m_owns) {
+                m_locker.unlock_shared();
+            }
+        }
+
+        void lock() noexcept {
+            if (!m_owns) {
+                m_locker.lock_shared();
+                m_owns = true;
+            }
+        }
+
+        bool try_lock() noexcept {
+            if (!m_owns) {
+                m_owns = m_locker.try_lock_shared();
+            }
+            return m_owns;
+        }
+
+        void unlock() noexcept {
+            if (m_owns) {
+                m_locker.unlock_shared();
+                m_owns = false;
+            }
+        }
+
+        bool owns_lock() const noexcept {
+            return m_owns;
         }
     };
 }
