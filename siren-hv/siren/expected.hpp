@@ -430,12 +430,12 @@ namespace siren {
         template<typename ErrTy2>
             requires std::is_constructible_v<ErrTy, const ErrTy2&>
         constexpr expected(const unexpected<ErrTy2>& other) noexcept(std::is_nothrow_constructible_v<ErrTy, const ErrTy2&>)
-            : m_error{ other.m_error }, m_has_value{ false } {}
+            : m_error{ other.error() }, m_has_value{false} {}
 
         template<typename ErrTy2>
             requires std::is_constructible_v<ErrTy, ErrTy2&&>
         constexpr expected(unexpected<ErrTy2>&& other) noexcept(std::is_nothrow_constructible_v<ErrTy, ErrTy2&&>)
-            : m_error{ std::move(other.m_error) }, m_has_value{ false } {}
+            : m_error{ std::move(other.error()) }, m_has_value{ false } {}
 
         constexpr explicit expected(std::in_place_t) noexcept : m_has_value{ true } {}
 
