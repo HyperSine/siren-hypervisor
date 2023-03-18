@@ -2,6 +2,8 @@
 #include <intrin.h>
 #include "paging.hpp"
 #include "../literals.hpp"
+#include "../expected.hpp"
+#include "../nt_status.hpp"
 #include "../utility.hpp"
 
 namespace siren::x86 {
@@ -1520,26 +1522,132 @@ namespace siren::x86 {
 
 #undef SIREN_VMCSF_SIZE_GUARD
 
+    struct alignas(4_KiB_size_v) vmx_msr_bitmap_t {
+        struct state_flags_t {
+            uint8_t activate_read : 1;
+            uint8_t activate_write : 1;
+            uint8_t read : 1;
+            uint8_t write : 1;
+        };
+
+        uint8_t read_low[1024];
+        uint8_t read_high[1024];
+        uint8_t write_low[1024];
+        uint8_t write_high[1024];
+
+        static constexpr closed_interval_t low_msr_address_interval_v = { 0x00000000ui32, 0x00001fffui32 };
+        static constexpr closed_interval_t high_msr_address_interval_v = { 0xc0000000ui32, 0xc0001fffui32 };
+
+        [[nodiscard]]
+        expected<state_flags_t, nt_status> get(uint32_t msr_address) const noexcept {
+            if (low_msr_address_interval_v.contains(msr_address)) {
+                uint32_t delta = msr_address - low_msr_address_interval_v.min;
+
+                auto pos = delta / 8u;
+                auto mask = static_cast<uint8_t>(1u << (delta % 8u));
+
+                return state_flags_t{
+                    .activate_read = 1,
+                    .activate_write = 1,
+                    .read = (read_low[pos] & mask) != 0 ? uint8_t{ 1 } : uint8_t{ 0 },
+                    .write = (write_low[pos] & mask) != 0 ? uint8_t{ 1 } : uint8_t{ 0 },
+                };
+            } else if (high_msr_address_interval_v.contains(msr_address)) {
+                uint32_t delta = msr_address - high_msr_address_interval_v.min;
+
+                auto pos = delta / 8u;
+                auto mask = static_cast<uint8_t>(1u << (delta % 8u));
+
+                return state_flags_t{
+                    .activate_read = 1,
+                    .activate_write = 1,
+                    .read = (read_high[pos] & mask) != 0 ? uint8_t{ 1 } : uint8_t{ 0 },
+                    .write = (write_high[pos] & mask) != 0 ? uint8_t{ 1 } : uint8_t{ 0 },
+                };
+            } else {
+                return state_flags_t{};
+            }
+        }
+
+        [[nodiscard]]
+        expected<void, nt_status> set(uint32_t msr_address, state_flags_t flags) noexcept {
+            if (low_msr_address_interval_v.contains(msr_address)) {
+                uint32_t delta = msr_address - low_msr_address_interval_v.min;
+
+                auto pos = delta / 8u;
+                auto mask = static_cast<uint8_t>(1u << (delta % 8u));
+
+                if (flags.activate_read) {
+                    uint8_t current_read = (read_low[pos] & mask) != 0 ? 1 : 0;
+                    if (current_read != flags.read) {
+                        read_low[pos] ^= mask;
+                    }
+                }
+
+                if (flags.activate_write) {
+                    uint8_t current_write = (write_low[pos] & mask) != 0 ? 1 : 0;
+                    if (current_write != flags.write) {
+                        write_low[pos] ^= mask;
+                    }
+                }
+
+                return {};
+            } else if (high_msr_address_interval_v.contains(msr_address)) {
+                uint32_t delta = msr_address - high_msr_address_interval_v.min;
+
+                auto pos = delta / 8u;
+                auto mask = static_cast<uint8_t>(1u << (delta % 8u));
+
+                if (flags.activate_read) {
+                    uint8_t current_read = (read_high[pos] & mask) != 0 ? 1 : 0;
+                    if (current_read != flags.read) {
+                        read_high[pos] ^= mask;
+                    }
+                }
+
+                if (flags.activate_write) {
+                    uint8_t current_write = (write_high[pos] & mask) != 0 ? 1 : 0;
+                    if (current_write != flags.write) {
+                        write_high[pos] ^= mask;
+                    }
+                }
+
+                return {};
+            } else {
+                return unexpected{ nt_status_invalid_parameter_v };
+            }
+        }
+    };
+
+    static_assert(sizeof(vmx_msr_bitmap_t) == 4_KiB_size_v);
+    static_assert(alignof(vmx_msr_bitmap_t) == 4_KiB_size_v);
+    static_assert(std::is_aggregate_v<vmx_msr_bitmap_t>);
+
     struct vmx_result_t {
         uint8_t value;
 
         [[nodiscard]]
-        constexpr bool is_failure() const noexcept { return value != 0; }
+        friend constexpr bool operator==(const vmx_result_t& lhs, const vmx_result_t& rhs) noexcept = default;
 
         [[nodiscard]]
-        constexpr bool is_success() const noexcept { return value == 0; }
+        friend constexpr bool operator!=(const vmx_result_t& lhs, const vmx_result_t& rhs) noexcept = default;
 
         [[nodiscard]]
-        static constexpr vmx_result_t success() noexcept { return { 0 }; }
+        constexpr bool is_failure() const noexcept {
+            return value != 0;
+        }
 
         [[nodiscard]]
-        static constexpr vmx_result_t failure_with_reason() noexcept { return { 1 }; }
-
-        [[nodiscard]]
-        static constexpr vmx_result_t failure_without_reason() noexcept { return { 2 }; }
+        constexpr bool is_success() const noexcept {
+            return value == 0;
+        }
     };
 
     static_assert(std::is_aggregate_v<vmx_result_t>);
+
+    constexpr vmx_result_t vmx_result_success_v = { 0 };
+    constexpr vmx_result_t vmx_result_failure_with_reason_v = { 1 };
+    constexpr vmx_result_t vmx_result_failure_without_reason_v = { 2 };
 
     [[nodiscard]]
     inline vmx_result_t vmx_on(paddr_t vmxon_region_address) noexcept {
