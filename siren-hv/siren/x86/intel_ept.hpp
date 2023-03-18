@@ -101,7 +101,7 @@ namespace siren::x86 {
                     constexpr bool is_present() const noexcept {
                         return (read_access == 1 || write_access == 1 || execute_access == 1) && always_one == 1;
                     }
-                } for_1gb_page;
+                } for_1GiB_page;
             } semantics;
         };
     };
@@ -173,7 +173,7 @@ namespace siren::x86 {
                     constexpr bool is_present() const noexcept {
                         return (read_access == 1 || write_access == 1 || execute_access == 1) && always_one == 1;
                     }
-                } for_2mb_page;
+                } for_2MiB_page;
             } semantics;
         };
     };
@@ -235,10 +235,10 @@ namespace siren::x86 {
     static_assert(sizeof(ept_pt_entry_t::storage) == sizeof(ept_pt_entry_t::semantics));
 
     struct alignas(4_KiB_size_v) ept_pt_t {
-        ept_pt_entry_t entry[4_KiB_size_v / sizeof(ept_pt_entry_t)];
+        ept_pt_entry_t entries[4_KiB_size_v / sizeof(ept_pt_entry_t)];
 
         static constexpr size_t length() noexcept {
-            return std::extent_v<decltype(ept_pt_t::entry)>;
+            return std::extent_v<decltype(ept_pt_t::entries)>;
         }
     };
 
