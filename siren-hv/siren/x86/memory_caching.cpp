@@ -86,16 +86,16 @@ namespace siren::x86 {
 
     template<>
     memory_type_t memory_type_t::propose(paddr_t base, on_4KiB_page_t) noexcept {
-        return memory_type_propose({ .base = base, .mask = ~(4_KiB_size_v - 1) });
+        return memory_type_propose({ .base = base, .mask = ~(4_KiB_uz - 1) });
     }
 
     template<>
     memory_type_t memory_type_t::propose(paddr_t base, on_2MiB_page_t) noexcept {
-        return memory_type_propose({ .base = base, .mask = ~(2_MiB_size_v - 1) });
+        return memory_type_propose({ .base = base, .mask = ~(2_MiB_uz - 1) });
     }
 
     template<>
     memory_type_t memory_type_t::propose(paddr_t base, on_1GiB_page_t) noexcept {
-        return memory_type_propose({ .base = base, .mask = ~(1_GiB_size_v - 1) });
+        return memory_type_propose({ .base = base, .mask = ~(1_GiB_uz - 1) });
     }
 }

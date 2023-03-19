@@ -14,27 +14,27 @@ namespace siren::x86 {
     //  |-> Chapter 24 Virtual Machine CONTROL Structures
     //    |-> 24.11 Software Use of the VMCS and Related Structures
     //      |-> 24.11.5 VMXON Region
-    struct alignas(4_KiB_size_v) vmxon_region_t {
+    struct alignas(4_KiB_uz) vmxon_region_t {
         uint32_t revision : 31;
         uint32_t reserved : 1;
         uint8_t used_by_cpu[1];     // ANYSIZE_ARRAY
     };
 
-    static_assert(alignof(vmxon_region_t) == 4_KiB_size_v);
+    static_assert(alignof(vmxon_region_t) == 4_KiB_uz);
 
     // Defined in 
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
     //  |-> Chapter 24 Virtual Machine CONTROL Structures
     //    |-> 24.2 Format of the VMCS Region
     //      |-> Table 24-1. Format of the VMCS Region
-    struct alignas(4_KiB_size_v) vmcs_region_t {
+    struct alignas(4_KiB_uz) vmcs_region_t {
         uint32_t revision : 31;
         uint32_t shadow_vmcs_indicator : 1;
         uint32_t vmx_abort_indicator;
         uint8_t used_by_cpu[1];     // ANYSIZE_ARRAY
     };
 
-    static_assert(alignof(vmcs_region_t) == 4_KiB_size_v);
+    static_assert(alignof(vmcs_region_t) == 4_KiB_uz);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -1522,7 +1522,7 @@ namespace siren::x86 {
 
 #undef SIREN_VMCSF_SIZE_GUARD
 
-    struct alignas(4_KiB_size_v) vmx_msr_bitmap_t {
+    struct alignas(4_KiB_uz) vmx_msr_bitmap_t {
         struct state_flags_t {
             uint8_t activate_read : 1;
             uint8_t activate_write : 1;
@@ -1619,8 +1619,8 @@ namespace siren::x86 {
         }
     };
 
-    static_assert(sizeof(vmx_msr_bitmap_t) == 4_KiB_size_v);
-    static_assert(alignof(vmx_msr_bitmap_t) == 4_KiB_size_v);
+    static_assert(sizeof(vmx_msr_bitmap_t) == 4_KiB_uz);
+    static_assert(alignof(vmx_msr_bitmap_t) == 4_KiB_uz);
     static_assert(std::is_aggregate_v<vmx_msr_bitmap_t>);
 
     struct vmx_result_t {

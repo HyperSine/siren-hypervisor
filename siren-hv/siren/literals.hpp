@@ -5,7 +5,7 @@
 namespace siren {
     namespace size_literals {
         [[nodiscard]]
-        consteval size_t operator""_KiB_size_v(unsigned long long int n) noexcept {
+        consteval size_t operator""_KiB_uz(unsigned long long int n) noexcept {
             constexpr uint64_t one_KiB_size = uint64_t{1} << 10u;
             constexpr uint64_t max_KiB_magnitude = std::numeric_limits<size_t>::max() / one_KiB_size;
 
@@ -20,7 +20,7 @@ namespace siren {
         }
 
         [[nodiscard]]
-        consteval size_t operator""_MiB_size_v(unsigned long long int n) noexcept {
+        consteval size_t operator""_MiB_uz(unsigned long long int n) noexcept {
             constexpr uint64_t one_MiB_size = uint64_t{1} << 20u;
             constexpr uint64_t max_MiB_magnitude = std::numeric_limits<uint64_t>::max() / one_MiB_size;
 
@@ -35,7 +35,7 @@ namespace siren {
         }
 
         [[nodiscard]]
-        consteval size_t operator""_GiB_size_v(unsigned long long int n) noexcept {
+        consteval size_t operator""_GiB_uz(unsigned long long int n) noexcept {
             constexpr uint64_t one_GiB_size = uint64_t{ 1 } << 30u;
             constexpr uint64_t max_GiB_magnitude = std::numeric_limits<uint64_t>::max() / one_GiB_size;
 
