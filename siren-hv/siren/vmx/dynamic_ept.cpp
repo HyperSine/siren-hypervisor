@@ -780,6 +780,7 @@ namespace siren::vmx {
         allocator_delete(npaged_pool, nd);
     }
 
+    _IRQL_requires_max_(DISPATCH_LEVEL)
     void dynamic_ept::terminate() noexcept {
         cache_shrink(0);
         if (m_top_level_node) {
@@ -801,6 +802,7 @@ namespace siren::vmx {
         other.m_top_level_node = nullptr;
     }
 
+    _IRQL_requires_max_(DISPATCH_LEVEL)
     dynamic_ept& dynamic_ept::operator=(dynamic_ept&& other) noexcept {
         if (this != std::addressof(other)) {
             terminate();
@@ -814,10 +816,12 @@ namespace siren::vmx {
         return *this;
     }
 
+    _IRQL_requires_max_(DISPATCH_LEVEL)
     dynamic_ept::~dynamic_ept() noexcept {
         terminate();
     }
 
+    _IRQL_requires_max_(DISPATCH_LEVEL)
     expected<void, nt_status> dynamic_ept::initialize() noexcept {
         expected<node*, nt_status> top_level_node = node_new();
 

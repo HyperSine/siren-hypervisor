@@ -249,6 +249,7 @@ namespace siren::vmx {
         _IRQL_requires_max_(DISPATCH_LEVEL)
         void node_free(node* nd) noexcept;
 
+        _IRQL_requires_max_(DISPATCH_LEVEL)
         void terminate() noexcept;
 
     public:
@@ -264,8 +265,10 @@ namespace siren::vmx {
         dynamic_ept& operator=(const dynamic_ept&) = delete;
 
         // move assigment operator
+        _IRQL_requires_max_(DISPATCH_LEVEL)
         dynamic_ept& operator=(dynamic_ept&& other) noexcept;
 
+        _IRQL_requires_max_(DISPATCH_LEVEL)
         ~dynamic_ept() noexcept;
 
         _IRQL_requires_max_(DISPATCH_LEVEL)
