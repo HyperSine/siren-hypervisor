@@ -1,80 +1,405 @@
 #include "dynamic_ept.hpp"
+#include "../address_space.hpp"
+#include <wdm.h>
 
-namespace siren::hypervisors::vmx {
-
-    [[nodiscard]]
-    dynamic_ept::node_t* dynamic_ept::node_t::create(lookaside_pool* node_allocator, lookaside_pool* table_allocator, bool no_interrupt) noexcept {
-        node_t* new_node = nullptr;
-        any_table_t* new_table = nullptr;
-
-        new_node = node_allocator->allocate<node_t>(no_interrupt);
-        if (new_node == nullptr) {
-            goto ON_FINAL;
-        }
-
-        new_table = table_allocator->allocate<any_table_t>(no_interrupt);
-        if (new_table == nullptr) {
-            goto ON_FINAL;
-        }
-
-        new_node->m_parent = nullptr;
-        new_node->m_forward = new_node;
-        new_node->m_backward = new_node;
-        new_node->m_children = nullptr;
-        new_node->m_table = new_table;
-        new_node->m_table_level = 0;
-        new_node->m_table_index = 0;
-        new_node->m_table_pfn = x86::address_to_pfn(x86::get_physical_address(new_table), x86::_4kb_page_traits{});
-
-    ON_FINAL:
-        if (new_node == nullptr || new_table == nullptr) {
-            table_allocator->deallocate(new_table, no_interrupt);
-            new_table = nullptr;
-
-            node_allocator->deallocate(new_node, no_interrupt);
-            new_node = nullptr;
-        }
-
-        return new_node;
+namespace siren::vmx {
+    bool dynamic_ept::setting_flags::is_present() const noexcept {
+        return read_access == 1 || write_access == 1 || execute_access == 1;
     }
 
-    void dynamic_ept::node_t::attach(node_t* parent, uint32_t index) noexcept {
-        if (parent->m_children) {
-            node_t* insert_node = parent->get_child_lowerbound(index);
-            if (insert_node == nullptr) {
-                insert_node = parent->m_children;
+    void dynamic_ept::setting_flags::apply_to(decltype(x86::ept_pdt_entry_t::semantics.for_pml1)& entry) const noexcept {
+        entry.read_access = read_access;
+        entry.write_access = write_access;
+        entry.execute_access = execute_access;
+        // entry.always_zero = always_zero;
+        entry.accessed_flag = accessed_flag;
+        entry.user_mode_execute_access = user_mode_execute_access;
+    }
+
+    void dynamic_ept::setting_flags::apply_to(decltype(x86::ept_pdpt_entry_t::semantics.for_pml2)& entry) const noexcept {
+        entry.read_access = read_access;
+        entry.write_access = write_access;
+        entry.execute_access = execute_access;
+        // entry.always_zero = always_zero;
+        entry.accessed_flag = accessed_flag;
+        entry.user_mode_execute_access = user_mode_execute_access;
+    }
+
+    void dynamic_ept::setting_flags::apply_to(decltype(x86::ept_pml4_entry_t::semantics)& entry) const noexcept {
+        entry.read_access = read_access;
+        entry.write_access = write_access;
+        entry.execute_access = execute_access;
+        entry.accessed_flag = accessed_flag;
+        entry.user_mode_execute_access = user_mode_execute_access;
+    }
+
+    void dynamic_ept::setting_flags::apply_to(decltype(x86::ept_pt_entry_t::semantics)& entry) const noexcept {
+        entry.read_access = read_access;
+        entry.write_access = write_access;
+        entry.execute_access = execute_access;
+        entry.memory_type = memory_type;
+        entry.ignore_pat_memory_type = ignore_pat_memory_type;
+        entry.accessed_flag = accessed_flag;
+        entry.dirty_flag = dirty_flag;
+        entry.user_mode_execute_access = user_mode_execute_access;
+        entry.verify_guest_paging = verify_guest_paging;
+        entry.paging_write_access = paging_write_access;
+        entry.allow_supervisor_shadow_stack_access = allow_supervisor_shadow_stack_access;
+        entry.sub_page_write_permissions = sub_page_write_permissions;
+        entry.suppress_ve_exception = suppress_ve_exception;
+    }
+
+    void dynamic_ept::setting_flags::apply_to(decltype(x86::ept_pdt_entry_t::semantics.for_2MiB_page)& entry) const noexcept {
+        entry.read_access = read_access;
+        entry.write_access = write_access;
+        entry.execute_access = execute_access;
+        entry.memory_type = memory_type;
+        entry.ignore_pat_memory_type = ignore_pat_memory_type;
+        // entry.always_one = always_one;
+        entry.accessed_flag = accessed_flag;
+        entry.dirty_flag = dirty_flag;
+        entry.user_mode_execute_access = user_mode_execute_access;
+        entry.verify_guest_paging = verify_guest_paging;
+        entry.paging_write_access = paging_write_access;
+        entry.allow_supervisor_shadow_stack_access = allow_supervisor_shadow_stack_access;
+        entry.suppress_ve_exception = suppress_ve_exception;
+    }
+
+    void dynamic_ept::setting_flags::apply_to(decltype(x86::ept_pdpt_entry_t::semantics.for_1GiB_page)& entry) const noexcept {
+        entry.read_access = read_access;
+        entry.write_access = write_access;
+        entry.execute_access = execute_access;
+        entry.memory_type = memory_type;
+        entry.ignore_pat_memory_type = ignore_pat_memory_type;
+        // entry.always_one = always_one;
+        entry.accessed_flag = accessed_flag;
+        entry.dirty_flag = dirty_flag;
+        entry.user_mode_execute_access = user_mode_execute_access;
+        entry.verify_guest_paging = verify_guest_paging;
+        entry.paging_write_access = paging_write_access;
+        entry.allow_supervisor_shadow_stack_access = allow_supervisor_shadow_stack_access;
+        entry.suppress_ve_exception = suppress_ve_exception;
+    }
+
+    dynamic_ept::setting_flags dynamic_ept::setting_flags::load_from(const decltype(x86::ept_pdt_entry_t::semantics.for_pml1)& entry) noexcept {
+        setting_flags flags = {};
+        flags.read_access = entry.read_access;
+        flags.write_access = entry.write_access;
+        flags.execute_access = entry.execute_access;
+        // flags.always_zero = entry.always_zero;
+        flags.accessed_flag = entry.accessed_flag;
+        flags.user_mode_execute_access = entry.user_mode_execute_access;
+        return flags;
+    }
+
+    dynamic_ept::setting_flags dynamic_ept::setting_flags::load_from(const decltype(x86::ept_pdpt_entry_t::semantics.for_pml2)& entry) noexcept {
+        setting_flags flags = {};
+        flags.read_access = entry.read_access;
+        flags.write_access = entry.write_access;
+        flags.execute_access = entry.execute_access;
+        // flags.always_zero = entry.always_zero;
+        flags.accessed_flag = entry.accessed_flag;
+        flags.user_mode_execute_access = entry.user_mode_execute_access;
+        return flags;
+    }
+
+    dynamic_ept::setting_flags dynamic_ept::setting_flags::load_from(const decltype(x86::ept_pml4_entry_t::semantics)& entry) noexcept {
+        setting_flags flags = {};
+        flags.read_access = entry.read_access;
+        flags.write_access = entry.write_access;
+        flags.execute_access = entry.execute_access;
+        flags.accessed_flag = entry.accessed_flag;
+        flags.user_mode_execute_access = entry.user_mode_execute_access;
+        return flags;
+    }
+
+    dynamic_ept::setting_flags dynamic_ept::setting_flags::load_from(const decltype(x86::ept_pt_entry_t::semantics)& entry) noexcept {
+        setting_flags flags = {};
+        flags.read_access = entry.read_access;
+        flags.write_access = entry.write_access;
+        flags.execute_access = entry.execute_access;
+        flags.memory_type = entry.memory_type;
+        flags.ignore_pat_memory_type = entry.ignore_pat_memory_type;
+        flags.accessed_flag = entry.accessed_flag;
+        flags.dirty_flag = entry.dirty_flag;
+        flags.user_mode_execute_access = entry.user_mode_execute_access;
+        flags.verify_guest_paging = entry.verify_guest_paging;
+        flags.paging_write_access = entry.paging_write_access;
+        flags.allow_supervisor_shadow_stack_access = entry.allow_supervisor_shadow_stack_access;
+        flags.sub_page_write_permissions = entry.sub_page_write_permissions;
+        flags.suppress_ve_exception = entry.suppress_ve_exception;
+        return flags;
+    }
+
+    dynamic_ept::setting_flags dynamic_ept::setting_flags::load_from(const decltype(x86::ept_pdt_entry_t::semantics.for_2MiB_page)& entry) noexcept {
+        setting_flags flags = {};
+        flags.read_access = entry.read_access;
+        flags.write_access = entry.write_access;
+        flags.execute_access = entry.execute_access;
+        flags.memory_type = entry.memory_type;
+        flags.ignore_pat_memory_type = entry.ignore_pat_memory_type;
+        // flags.always_one = entry.always_one;
+        flags.accessed_flag = entry.accessed_flag;
+        flags.dirty_flag = entry.dirty_flag;
+        flags.user_mode_execute_access = entry.user_mode_execute_access;
+        flags.verify_guest_paging = entry.verify_guest_paging;
+        flags.paging_write_access = entry.paging_write_access;
+        flags.allow_supervisor_shadow_stack_access = entry.allow_supervisor_shadow_stack_access;
+        flags.suppress_ve_exception = entry.suppress_ve_exception;
+        return flags;
+    }
+
+    dynamic_ept::setting_flags dynamic_ept::setting_flags::load_from(const decltype(x86::ept_pdpt_entry_t::semantics.for_1GiB_page)& entry) noexcept {
+        setting_flags flags = {};
+        flags.read_access = entry.read_access;
+        flags.write_access = entry.write_access;
+        flags.execute_access = entry.execute_access;
+        flags.memory_type = entry.memory_type;
+        flags.ignore_pat_memory_type = entry.ignore_pat_memory_type;
+        // flags.always_one = entry.always_one;
+        flags.accessed_flag = entry.accessed_flag;
+        flags.dirty_flag = entry.dirty_flag;
+        flags.user_mode_execute_access = entry.user_mode_execute_access;
+        flags.verify_guest_paging = entry.verify_guest_paging;
+        flags.paging_write_access = entry.paging_write_access;
+        flags.allow_supervisor_shadow_stack_access = entry.allow_supervisor_shadow_stack_access;
+        flags.suppress_ve_exception = entry.suppress_ve_exception;
+        return flags;
+    }
+
+    dynamic_ept::page_description dynamic_ept::page_description::load_from(const decltype(x86::ept_pt_entry_t::semantics)& entry) noexcept {
+        page_description desc = {};
+        desc.read_access = entry.read_access;
+        desc.write_access = entry.write_access;
+        desc.execute_access = entry.execute_access;
+        desc.memory_type = entry.memory_type;
+        desc.ignore_pat_memory_type = entry.ignore_pat_memory_type;
+        desc.accessed_flag = entry.accessed_flag;
+        desc.dirty_flag = entry.dirty_flag;
+        desc.user_mode_execute_access = entry.user_mode_execute_access;
+        desc.page_physical_pfn = entry.page_physical_address;
+        desc.page_type = 0;
+        desc.verify_guest_paging = entry.verify_guest_paging;
+        desc.paging_write_access = entry.paging_write_access;
+        desc.allow_supervisor_shadow_stack_access = entry.allow_supervisor_shadow_stack_access;
+        desc.sub_page_write_permissions = entry.sub_page_write_permissions;
+        desc.suppress_ve_exception = entry.suppress_ve_exception;
+        return desc;
+    }
+
+    dynamic_ept::page_description dynamic_ept::page_description::load_from(const decltype(x86::ept_pdt_entry_t::semantics.for_2MiB_page)& entry) noexcept {
+        page_description desc = {};
+        desc.read_access = entry.read_access;
+        desc.write_access = entry.write_access;
+        desc.execute_access = entry.execute_access;
+        desc.memory_type = entry.memory_type;
+        desc.ignore_pat_memory_type = entry.ignore_pat_memory_type;
+        desc.accessed_flag = entry.accessed_flag;
+        desc.dirty_flag = entry.dirty_flag;
+        desc.user_mode_execute_access = entry.user_mode_execute_access;
+        desc.page_physical_pfn = entry.page_physical_address;
+        desc.page_type = 1;
+        desc.verify_guest_paging = entry.verify_guest_paging;
+        desc.paging_write_access = entry.paging_write_access;
+        desc.allow_supervisor_shadow_stack_access = entry.allow_supervisor_shadow_stack_access;
+        desc.suppress_ve_exception = entry.suppress_ve_exception;
+        return desc;
+    }
+
+    dynamic_ept::page_description dynamic_ept::page_description::load_from(const decltype(x86::ept_pdpt_entry_t::semantics.for_1GiB_page)& entry) noexcept {
+        page_description desc = {};
+        desc.read_access = entry.read_access;
+        desc.write_access = entry.write_access;
+        desc.execute_access = entry.execute_access;
+        desc.memory_type = entry.memory_type;
+        desc.ignore_pat_memory_type = entry.ignore_pat_memory_type;
+        desc.accessed_flag = entry.accessed_flag;
+        desc.dirty_flag = entry.dirty_flag;
+        desc.user_mode_execute_access = entry.user_mode_execute_access;
+        desc.page_physical_pfn = entry.page_physical_address;
+        desc.page_type = 2;
+        desc.verify_guest_paging = entry.verify_guest_paging;
+        desc.paging_write_access = entry.paging_write_access;
+        desc.allow_supervisor_shadow_stack_access = entry.allow_supervisor_shadow_stack_access;
+        desc.suppress_ve_exception = entry.suppress_ve_exception;
+        return desc;
+    }
+
+    dynamic_ept::node* dynamic_ept::node::link_before(node* other) noexcept {
+        this->forward = other;
+        this->backward = other->backward;
+        this->backward->forward = this;
+        this->forward->backward = this;
+        return this;
+    }
+
+    dynamic_ept::node* dynamic_ept::node::link_after(node* other) noexcept {
+        this->forward = other->forward;
+        this->backward = other;
+        this->backward->forward = this;
+        this->forward->backward = this;
+        return this;
+    }
+
+    dynamic_ept::node* dynamic_ept::node::unlink() noexcept {
+        this->forward->backward = this->backward;
+        this->backward->forward = this->forward;
+        this->forward = this;
+        this->backward = this;
+        return this;
+    }
+
+    dynamic_ept::node* dynamic_ept::node::get_child(uint32_t index) noexcept {
+        constexpr uint32_t mid = 512 / 2;
+
+        if (children && is_pml_present(index)) {
+            if (index < mid) {
+                node* p = children;
+                do {
+                    if (index == p->table_index) {
+                        return p;
+                    } else {
+                        p = p->forward;
+                    }
+                } while (p != children);
+            } else {
+                node* last_child = children->backward;
+                node* p = last_child;
+                do {
+                    if (index == p->table_index) {
+                        return p;
+                    } else {
+                        p = p->backward;
+                    }
+                } while (p != last_child);
             }
-
-            m_parent = parent;
-            m_forward = insert_node;
-            m_backward = insert_node->m_backward;
-            m_backward->m_forward = this;
-            m_forward->m_backward = this;
-            // m_children;          // don't cares
-            // m_table;             // already set
-            m_table_level = parent->m_table_level - 1;
-            m_table_index = index;
-            // m_table_pfn;         // already set
-
-            if (parent->m_children == insert_node && get_table_index() < insert_node->get_table_index()) {
-                parent->m_children = this;
-            }
-        } else {
-            m_parent = parent;
-            // m_forward = this;    // already set
-            // m_backword = this;   // already set
-            // m_children;          // don't cares
-            // m_table;             // already set
-            m_table_level = parent->m_table_level - 1;
-            m_table_index = index;
-            // m_table_pfn;         // already set
-
-            parent->m_children = this;
         }
 
-        switch (parent->get_table_level()) {
+        return nullptr;
+    }
+
+    dynamic_ept::node* dynamic_ept::node::get_child_lowerbound(uint32_t bound) noexcept {
+        constexpr uint32_t mid = 512 / 2;
+
+        if (children) {
+            if (bound < mid) {
+                node* first_child = children;
+                node* p = first_child;
+                do {
+                    if (bound <= p->table_index) {
+                        return p;
+                    } else {
+                        p = p->forward;
+                    }
+                } while (p != first_child);
+                return nullptr;
+            } else {
+                node* last_child = children->backward;
+                node* p = last_child;
+                do {
+                    if (p->table_index < bound) {
+                        return bound <= p->forward->table_index ? p->forward : nullptr;
+                    } else {
+                        p = p->backward;
+                    }
+                } while (p != last_child);
+                return children;
+            }
+        }
+
+        return nullptr;
+    }
+
+    dynamic_ept::node* dynamic_ept::node::get_child_upperbound(uint32_t bound) noexcept {
+        constexpr uint32_t mid = 512 / 2;
+
+        if (children) {
+            if (bound < mid) {
+                node* first_child = children;
+                node* p = first_child;
+                do {
+                    if (bound < p->table_index) {
+                        return p;
+                    } else {
+                        p = p->forward;
+                    }
+                } while (p != first_child);
+                return nullptr;
+            } else {
+                node* last_child = children->backward;
+                node* p = last_child;
+                do {
+                    if (p->table_index <= bound) {
+                        return bound < p->forward->table_index ? p->forward : nullptr;
+                    } else {
+                        p = p->backward;
+                    }
+                } while (p != last_child);
+                return children;
+            }
+        }
+
+        return nullptr;
+    }
+
+    size_t dynamic_ept::node::count_children() const noexcept {
+        if (children) {
+            size_t cnt = 1;
+            for (node* p = children->forward; p != children; p = p->forward) {
+                ++cnt;
+            }
+            return cnt;
+        } else {
+            return 0;
+        }
+    }
+
+    const dynamic_ept::node* dynamic_ept::node::get_child(uint32_t index) const noexcept {
+        return const_cast<node*>(this)->get_child(index);
+    }
+
+    const dynamic_ept::node* dynamic_ept::node::get_child_lowerbound(uint32_t bound) const noexcept {
+        return const_cast<node*>(this)->get_child_lowerbound(bound);
+    }
+
+    const dynamic_ept::node* dynamic_ept::node::get_child_upperbound(uint32_t bound) const noexcept {
+        return const_cast<node*>(this)->get_child_upperbound(bound);
+    }
+
+    dynamic_ept::node* dynamic_ept::node::attach(node* parent_nd, uint32_t index) noexcept {
+        if (parent_nd->children) {
+            node* insert_nd = parent_nd->get_child_lowerbound(index);
+            if (insert_nd == nullptr) {
+                insert_nd = parent_nd->children;
+            }
+
+            this->parent = parent_nd;
+            this->link_before(insert_nd);
+            // this->children;          // don't care
+            // this->table;             // already set
+            this->table_level = parent_nd->table_level - 1;
+            this->table_index = index;
+            // this->table_pfn;         // already set
+
+            if (parent_nd->children == insert_nd && table_index < insert_nd->table_index) {
+                parent_nd->children = this;
+            }
+        } else {
+            this->parent = parent_nd;
+            // this->forward = this;    // already set
+            // this->backword = this;   // already set
+            // this->children;          // don't care
+            // this->table;             // already set
+            this->table_level = parent_nd->table_level - 1;
+            this->table_index = index;
+            // this->table_pfn;         // already set
+
+            parent_nd->children = this;
+        }
+
+        switch (parent_nd->table_level) {
             case 2: {
-                auto& pml2_entry = parent->m_table->pml2.entry[index];
+                auto& pml2_entry = parent_nd->table->pml2.entries[index];
 
                 pml2_entry = {};
                 pml2_entry.semantics.for_pml1.read_access = 1;
@@ -82,12 +407,12 @@ namespace siren::hypervisors::vmx {
                 pml2_entry.semantics.for_pml1.execute_access = 1;
                 pml2_entry.semantics.for_pml1.always_zero = 0;
                 pml2_entry.semantics.for_pml1.user_mode_execute_access = 1;
-                pml2_entry.semantics.for_pml1.pml1_physical_address = x86::address_to_pfn(get_table_physical_address(), x86::_4kb_page_traits{});
+                pml2_entry.semantics.for_pml1.pml1_physical_address = this->table_pfn;
 
                 break;
             }
             case 3: {
-                auto& pml3_entry = parent->m_table->pml3.entry[index];
+                auto& pml3_entry = parent_nd->table->pml3.entries[index];
 
                 pml3_entry = {};
                 pml3_entry.semantics.for_pml2.read_access = 1;
@@ -95,259 +420,803 @@ namespace siren::hypervisors::vmx {
                 pml3_entry.semantics.for_pml2.execute_access = 1;
                 pml3_entry.semantics.for_pml2.always_zero = 0;
                 pml3_entry.semantics.for_pml2.user_mode_execute_access = 1;
-                pml3_entry.semantics.for_pml2.pml2_physical_address = x86::address_to_pfn(get_table_physical_address(), x86::_4kb_page_traits{});
+                pml3_entry.semantics.for_pml2.pml2_physical_address = this->table_pfn;
 
                 break;
             }
             case 4: {
-                auto& pml4_entry = parent->m_table->pml4.entry[index];
+                auto& pml4_entry = parent_nd->table->pml4.entries[index];
 
                 pml4_entry = {};
                 pml4_entry.semantics.read_access = 1;
                 pml4_entry.semantics.write_access = 1;
                 pml4_entry.semantics.execute_access = 1;
                 pml4_entry.semantics.user_mode_execute_access = 1;
-                pml4_entry.semantics.pml3_physical_address = x86::address_to_pfn(get_table_physical_address(), x86::_4kb_page_traits{});
+                pml4_entry.semantics.pml3_physical_address = this->table_pfn;
 
                 break;
             }
             default:
-                invoke_debugger_noreturn();
+                std::unreachable();
+        }
+
+        return this;
+    }
+
+    dynamic_ept::node* dynamic_ept::node::detach() noexcept {
+        node* parent_nd = this->parent;
+
+        switch (table_level) {
+            case 1:
+                parent_nd->table->pml2.entries[table_index] = {}; break;
+            case 2:
+                parent_nd->table->pml3.entries[table_index] = {}; break;
+            case 3:
+                parent_nd->table->pml4.entries[table_index] = {}; break;
+            default:
+                std::unreachable();
+        }
+
+        this->parent = nullptr;
+        if (this->forward == this) {
+            parent_nd->children = nullptr;
+            // this->forward = this;    // already set
+            // this->backward = this;   // already set
+        } else {
+            if (parent_nd->children == this) {
+                parent_nd->children = forward;
+            }
+            this->unlink();
+        }
+        // this->children;     // don't care
+        this->table_level = 0;
+        this->table_index = 0;
+        // this->table_pfn;    // already set
+
+        return this;
+    }
+
+    bool dynamic_ept::node::is_pml_present(uint32_t index) const noexcept {
+        switch (table_level) {
+            case 2:
+                return table->pml2.entries[index].semantics.for_pml1.is_present();
+            case 3:
+                return table->pml3.entries[index].semantics.for_pml2.is_present();
+            case 4:
+                return table->pml4.entries[index].semantics.is_present();
+            default:
+                return false;
         }
     }
 
-    void dynamic_ept::node_t::detach() noexcept {
-        auto* parent_node = m_parent;
-
-        switch (get_table_level()) {
+    bool dynamic_ept::node::is_page_present(uint32_t index) const noexcept {
+        switch (table_level) {
             case 1:
-                parent_node->m_table->pml2.entry[get_table_index()] = {}; break;
+                return table->pml1.entries[index].semantics.is_present();
             case 2:
-                parent_node->m_table->pml3.entry[get_table_index()] = {}; break;
+                return table->pml2.entries[index].semantics.for_2MiB_page.is_present();
             case 3:
-                parent_node->m_table->pml4.entry[get_table_index()] = {}; break;
+                return table->pml3.entries[index].semantics.for_1GiB_page.is_present();
             default:
-                invoke_debugger_noreturn();
+                return false;
+        }
+    }
+
+    void dynamic_ept::node::split_page_entry(uint32_t index, node* new_node) noexcept {
+        switch (table_level) {
+            case 2: {
+                auto& page_entry = table->pml2.entries[index];
+                auto& pml1_table = new_node->table->pml1;
+
+                for (size_t i = 0; i < pml1_table.length(); ++i) {
+                    pml1_table.entries[i] = {};
+                    pml1_table.entries[i].semantics.read_access = page_entry.semantics.for_2MiB_page.read_access;
+                    pml1_table.entries[i].semantics.write_access = page_entry.semantics.for_2MiB_page.write_access;
+                    pml1_table.entries[i].semantics.execute_access = page_entry.semantics.for_2MiB_page.read_access;
+                    pml1_table.entries[i].semantics.memory_type = page_entry.semantics.for_2MiB_page.memory_type;
+                    pml1_table.entries[i].semantics.ignore_pat_memory_type = page_entry.semantics.for_2MiB_page.ignore_pat_memory_type;
+                    pml1_table.entries[i].semantics.user_mode_execute_access = page_entry.semantics.for_2MiB_page.user_mode_execute_access;
+
+                    x86::paddr_t _2MiB_page_paddr = x86::pfn_to_address(page_entry.semantics.for_2MiB_page.page_physical_address, x86::on_4KiB_page_t{});
+                    x86::paddr_t _sub_4KiB_page_paddr = _2MiB_page_paddr + i * 4_KiB_uz;
+
+                    pml1_table.entries[i].semantics.page_physical_address = x86::address_to_pfn(_sub_4KiB_page_paddr, x86::on_4KiB_page_t{});
+                    pml1_table.entries[i].semantics.verify_guest_paging = page_entry.semantics.for_2MiB_page.verify_guest_paging;
+                    pml1_table.entries[i].semantics.paging_write_access = page_entry.semantics.for_2MiB_page.paging_write_access;
+                    pml1_table.entries[i].semantics.allow_supervisor_shadow_stack_access = page_entry.semantics.for_2MiB_page.allow_supervisor_shadow_stack_access;
+                    pml1_table.entries[i].semantics.suppress_ve_exception = page_entry.semantics.for_2MiB_page.suppress_ve_exception;
+                }
+
+                break;
+            }
+            case 3: {
+                auto& pml3_entry = table->pml3.entries[index];
+                auto& pml2_table = new_node->table->pml2;
+
+                for (size_t i = 0; i < pml2_table.length(); ++i) {
+                    pml2_table.entries[i] = {};
+                    pml2_table.entries[i].semantics.for_2MiB_page.read_access = pml3_entry.semantics.for_1GiB_page.read_access;
+                    pml2_table.entries[i].semantics.for_2MiB_page.write_access = pml3_entry.semantics.for_1GiB_page.write_access;
+                    pml2_table.entries[i].semantics.for_2MiB_page.execute_access = pml3_entry.semantics.for_1GiB_page.read_access;
+                    pml2_table.entries[i].semantics.for_2MiB_page.memory_type = pml3_entry.semantics.for_1GiB_page.memory_type;
+                    pml2_table.entries[i].semantics.for_2MiB_page.ignore_pat_memory_type = pml3_entry.semantics.for_1GiB_page.ignore_pat_memory_type;
+                    pml2_table.entries[i].semantics.for_2MiB_page.always_one = 1;
+                    pml2_table.entries[i].semantics.for_2MiB_page.user_mode_execute_access = pml3_entry.semantics.for_1GiB_page.user_mode_execute_access;
+
+                    auto _1GiB_page_paddr = x86::pfn_to_address(pml3_entry.semantics.for_1GiB_page.page_physical_address, x86::on_4KiB_page_t{});
+                    auto _sub_2MiB_page_paddr = _1GiB_page_paddr + i * 2_MiB_uz;
+
+                    pml2_table.entries[i].semantics.for_2MiB_page.page_physical_address = x86::address_to_pfn(_sub_2MiB_page_paddr, x86::on_4KiB_page_t{});
+                    pml2_table.entries[i].semantics.for_2MiB_page.verify_guest_paging = pml3_entry.semantics.for_1GiB_page.verify_guest_paging;
+                    pml2_table.entries[i].semantics.for_2MiB_page.paging_write_access = pml3_entry.semantics.for_1GiB_page.paging_write_access;
+                    pml2_table.entries[i].semantics.for_2MiB_page.allow_supervisor_shadow_stack_access = pml3_entry.semantics.for_1GiB_page.allow_supervisor_shadow_stack_access;
+                    pml2_table.entries[i].semantics.for_2MiB_page.suppress_ve_exception = pml3_entry.semantics.for_1GiB_page.suppress_ve_exception;
+                }
+            }
+            default:
+                std::unreachable();
         }
 
-        m_parent = nullptr;
+        new_node->attach(this, index);
+    }
 
-        if (m_forward == this) {
-            parent_node->m_children = nullptr;
-            // forward = this;    // already set
-            // backward = this;   // already set
+    void dynamic_ept::cache_push(node* nd) noexcept {
+        if (m_cache_nodes) {
+            nd->link_before(m_cache_nodes);
         } else {
-            if (parent_node->m_children == this) {
-                parent_node->m_children = m_forward;
+            m_cache_nodes = nd;
+        }
+    }
+
+    dynamic_ept::node* dynamic_ept::cache_pop() noexcept {
+        if (m_cache_nodes) {
+            node* nd = m_cache_nodes->backward;
+            if (nd == m_cache_nodes) {
+                m_cache_nodes = nullptr;
+            } else {
+                nd->unlink();
+            }
+            return nd;
+        } else {
+            return nullptr;
+        }
+    }
+
+    _IRQL_requires_max_(DISPATCH_LEVEL)
+    expected<void, nt_status> dynamic_ept::cache_reserve_at_least(size_t require_size) noexcept {
+        for (size_t size = cache_size(); size < require_size; ++size) {
+            expected<node*, nt_status> expt_new_node = node_new();
+            if (expt_new_node.has_value()) {
+                node_free_to_cache(expt_new_node.value());
+            } else {
+                return unexpected{ expt_new_node.error() };
+            }
+        }
+        return {};
+    }
+
+    _IRQL_requires_max_(DISPATCH_LEVEL)
+    void dynamic_ept::cache_shrink(size_t keep_size) noexcept {
+        if (m_cache_nodes) {
+            if (keep_size == 0) {
+                while (m_cache_nodes->backward != m_cache_nodes) {
+                    node_free(m_cache_nodes->backward->unlink());
+                }
+                node_free(m_cache_nodes);   
+                m_cache_nodes = nullptr;
+            } else {
+                node* p = m_cache_nodes;
+
+                for (size_t cnt = 1; p->forward != m_cache_nodes && cnt < keep_size; p = p->forward) {
+                    ++cnt;
+                }
+
+                while (p->forward != m_cache_nodes) {
+                    node_free(p->forward->unlink());
+                }
+            }
+        }
+    }
+
+    size_t dynamic_ept::cache_size() const noexcept {
+        if (m_cache_nodes) {
+            size_t cnt = 1;
+            for (node* p = m_cache_nodes->forward; p != m_cache_nodes; p = p->forward) {
+                ++cnt;
+            }
+            return cnt;
+        } else {
+            return 0;
+        }
+    }
+
+    _IRQL_requires_max_(DISPATCH_LEVEL)
+    expected<dynamic_ept::node*, nt_status> dynamic_ept::node_new() noexcept {
+        npaged_allocator<std::byte> npaged_pool{};
+
+        auto unique_node = allocate_unique<node>(npaged_pool);
+        if (!unique_node.has_value()) {
+            return unexpected{ unique_node.error() };
+        }
+
+        auto unique_node_data = allocate_unique<node_data>(npaged_pool);
+        if (!unique_node_data.has_value()) {
+            return unexpected{ unique_node_data.error() };
+        }
+
+        node* nd = unique_node.value().release();
+
+        nd->parent = nullptr;
+        nd->forward = nd;
+        nd->backward = nd;
+        nd->children = nullptr;
+
+        nd->table = unique_node_data.value().release();
+        nd->table_level = 0;
+        nd->table_index = 0;
+        nd->table_pfn = x86::address_to_pfn(get_physical_address(nd->table), x86::on_4KiB_page_t{});
+
+        return nd;
+    }
+
+    expected<dynamic_ept::node*, nt_status> dynamic_ept::node_new_from_cache() noexcept {
+        node* nd = cache_pop();
+        if (nd) {
+            nd->parent = nullptr;
+            nd->forward = nd;
+            nd->backward = nd;
+            nd->children = nullptr;
+
+            nd->table_level = 0;
+            nd->table_index = 0;
+
+            return nd;
+        } else {
+            return unexpected{ nt_status_insufficient_resources_v };
+        }
+    }
+
+    dynamic_ept::node* dynamic_ept::node_get(int level, x86::guest_paddr_t gpa) const noexcept {
+        node* parent_node;
+
+        if (level == 3) {
+            parent_node = m_top_level_node;
+        } else {
+            parent_node = node_get(level + 1, gpa);
+        }
+
+        if (parent_node) {
+            if (level == 1) {
+                return parent_node->get_child(x86::index_of_pml<2>(gpa));
+            } else if (level == 2) {
+                return parent_node->get_child(x86::index_of_pml<3>(gpa));
+            } else if (level == 3) {
+                return parent_node->get_child(x86::index_of_pml<4>(gpa));
+            } else {
+                std::unreachable();
+            }
+        } else {
+            return nullptr;
+        }
+    }
+
+    _When_(high_irql == true, _IRQL_requires_max_(HIGH_LEVEL))
+    _When_(high_irql == false, _IRQL_requires_max_(DISPATCH_LEVEL))
+    expected<dynamic_ept::node*, nt_status> dynamic_ept::node_ensure(int level, x86::guest_paddr_t gpa, bool high_irql) noexcept {
+        node* parent_node;
+
+        if (level == 3) {
+            parent_node = m_top_level_node;
+        } else {
+            expected<node*, nt_status> expt_parent_node = node_ensure(level + 1, gpa, high_irql);
+            if (expt_parent_node.has_value()) {
+                parent_node = expt_parent_node.value();
+            } else {
+                return unexpected{ expt_parent_node.error() };
+            }
+        }
+
+        uint32_t target_index;
+        switch (level) {
+            case 1:
+                target_index = x86::index_of_pml<2>(gpa); break;
+            case 2:
+                target_index = x86::index_of_pml<3>(gpa); break;
+            case 3:
+                target_index = x86::index_of_pml<4>(gpa); break;
+            default:
+                std::unreachable();
+        }
+
+        node* target_node = parent_node->get_child(target_index);
+
+        if (target_node) {
+            return target_node;
+        } else {
+            expected<node*, nt_status> expt_new_node = high_irql ? node_new_from_cache() : node_new();
+            if (expt_new_node.has_error()) {
+                return unexpected{ expt_new_node.error() };
             }
 
-            m_forward->m_backward = m_backward;
-            m_backward->m_forward = m_forward;
-
-            m_forward = this;
-            m_backward = this;
+            if (parent_node->is_page_present(target_index)) {
+                //
+                // `parent_node` is guaranteed to be a PML2/PML3/PML4 node.
+                // So if the entry at `target_index` is a page entry, the entry is guaranteed to be a 1GiB-page entry or 2MiB-page page,
+                //   in other words, the page entry is splitable
+                //
+                parent_node->split_page_entry(target_index, expt_new_node.value());
+                return expt_new_node.value();
+            } else {
+                return expt_new_node.value()->attach(parent_node, target_index);
+            }
         }
-
-        // m_table_level;   // leave it untouched
-        m_table_index = 0;
-        // m_table_pfn;    // already set
     }
 
-    void dynamic_ept::node_t::destroy(lookaside_pool* node_allocator, lookaside_pool* table_allocator, bool no_interrupt) noexcept {
-        while (m_children) {
-            auto* last_child = m_children->m_backward;
+    void dynamic_ept::node_free_to_cache(node* nd) noexcept {
+        NT_ASSERT(nd->parent == nullptr);
+        NT_ASSERT(nd->forward == nd);
+        NT_ASSERT(nd->backward == nd);
 
-            last_child->detach();
-            last_child->destroy(node_allocator, table_allocator, no_interrupt);
+        while (nd->children) {
+            node_free_to_cache(nd->children->backward->detach());
         }
 
-        table_allocator->deallocate(m_table, no_interrupt);
-        node_allocator->deallocate(this, no_interrupt);
+        cache_push(nd);
     }
 
-    [[nodiscard]]
-    dynamic_ept::node_t* dynamic_ept::node_t::split_page_entry(uint32_t index, lookaside_pool* node_allocator, lookaside_pool* table_allocator, bool no_interrupt) noexcept {
-        node_t* new_node = node_t::create(node_allocator, table_allocator, no_interrupt);
+    _IRQL_requires_max_(DISPATCH_LEVEL)
+    void dynamic_ept::node_free(node* nd) noexcept {
+        NT_ASSERT(nd->parent == nullptr);
+        NT_ASSERT(nd->forward == nd);
+        NT_ASSERT(nd->backward == nd);
 
-        if (new_node) {
-            switch (get_table_level()) {
-                case 2: {
-                    x86::ept_pdt_entry_t pml2_entry = m_table->pml2.entry[index];
-                    x86::ept_pt_t& pml1_table = new_node->m_table->pml1;
+        npaged_allocator<std::byte> npaged_pool{};
 
-                    for (size_t i = 0; i < x86::ept_pt_entry_count_v; ++i) {
-                        pml1_table.entry[i] = {};
-                        pml1_table.entry[i].semantics.read_access = pml2_entry.semantics.for_2mb_page.read_access;
-                        pml1_table.entry[i].semantics.write_access = pml2_entry.semantics.for_2mb_page.write_access;
-                        pml1_table.entry[i].semantics.execute_access = pml2_entry.semantics.for_2mb_page.read_access;
-                        pml1_table.entry[i].semantics.memory_type = pml2_entry.semantics.for_2mb_page.memory_type;
-                        pml1_table.entry[i].semantics.ignore_pat_memory_type = pml2_entry.semantics.for_2mb_page.ignore_pat_memory_type;
-                        pml1_table.entry[i].semantics.user_mode_execute_access = pml2_entry.semantics.for_2mb_page.user_mode_execute_access;
+        while (nd->children) {
+            node_free(nd->children->backward->detach());
+        }
 
-                        auto _2mb_page_physical_address = x86::pfn_to_address(pml2_entry.semantics.for_2mb_page.page_physical_address, x86::_4kb_page_traits{});
-                        auto _sub_1kb_page_physical_address = _2mb_page_physical_address + i * 4_kb_size_v;
+        allocator_delete(npaged_pool, nd->table);
+        allocator_delete(npaged_pool, nd);
+    }
 
-                        pml1_table.entry[i].semantics.page_physical_address = x86::address_to_pfn(_sub_1kb_page_physical_address, x86::_4kb_page_traits{});
-                        pml1_table.entry[i].semantics.verify_guest_paging = pml2_entry.semantics.for_2mb_page.verify_guest_paging;
-                        pml1_table.entry[i].semantics.paging_write_access = pml2_entry.semantics.for_2mb_page.paging_write_access;
-                        pml1_table.entry[i].semantics.allow_supervisor_shadow_stack_access = pml2_entry.semantics.for_2mb_page.allow_supervisor_shadow_stack_access;
-                        pml1_table.entry[i].semantics.suppress_ve_exception = pml2_entry.semantics.for_2mb_page.suppress_ve_exception;
-                    }
+    void dynamic_ept::terminate() noexcept {
+        cache_shrink(0);
+        if (m_top_level_node) {
+            node_free(m_top_level_node);
+            m_top_level_node = nullptr;
+        }
+    }
 
+    dynamic_ept::dynamic_ept() noexcept
+        : m_cache_nodes{}, m_top_level_node{} {}
+
+    dynamic_ept::dynamic_ept(dynamic_ept&& other) noexcept
+        : m_cache_nodes{}, m_top_level_node{}
+    {
+        m_cache_nodes = other.m_cache_nodes;
+        m_top_level_node = other.m_top_level_node;
+
+        other.m_cache_nodes = nullptr;
+        other.m_top_level_node = nullptr;
+    }
+
+    dynamic_ept& dynamic_ept::operator=(dynamic_ept&& other) noexcept {
+        if (this != std::addressof(other)) {
+            terminate();
+
+            m_cache_nodes = other.m_cache_nodes;
+            m_top_level_node = other.m_top_level_node;
+
+            other.m_cache_nodes = nullptr;
+            other.m_top_level_node = nullptr;
+        }
+        return *this;
+    }
+
+    dynamic_ept::~dynamic_ept() noexcept {
+        terminate();
+    }
+
+    expected<void, nt_status> dynamic_ept::initialize() noexcept {
+        expected<node*, nt_status> top_level_node = node_new();
+
+        if (top_level_node.has_value()) {
+            m_top_level_node = top_level_node.value();
+        } else {
+            return unexpected{ top_level_node.error() };
+        }
+        
+        m_top_level_node->table_level = 4;
+
+        return {};
+    }
+
+    x86::paddr_t dynamic_ept::get_top_level_address() const noexcept {
+        return x86::pfn_to_address(m_top_level_node->table_pfn, x86::on_4KiB_page_t{});
+    }
+
+    _IRQL_requires_max_(DISPATCH_LEVEL)
+    expected<void, nt_status> dynamic_ept::prepare_page(size_t page_size, x86::guest_paddr_t gpa_base) noexcept {
+        int level;
+
+        switch (page_size) {
+            case 4_KiB_uz:
+                if (x86::page_offset<4_KiB_uz>(gpa_base) == 0) {
+                    level = 1;
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            case 2_MiB_uz:
+                if (x86::page_offset<2_MiB_uz>(gpa_base) == 0) {
+                    level = 2;
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            case 1_GiB_uz:
+                if (x86::page_offset<1_GiB_uz>(gpa_base) == 0) {
+                    level = 3;
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            default:
+                return unexpected{ nt_status_invalid_parameter_v };
+        }
+
+        size_t required_node_count = 4 - level;
+
+        node* pml3_node = nullptr;
+        node* pml2_node = nullptr;
+        node* pml1_node = nullptr;
+
+        do {
+            pml3_node = m_top_level_node->get_child(x86::index_of_pml<4>(gpa_base));
+            if (pml3_node) {
+                --required_node_count;
+            } else {
+                break;
+            }
+
+            if (level <= 2) {
+                pml2_node = pml3_node->get_child(x86::index_of_pml<3>(gpa_base));
+                if (pml2_node) {
+                    --required_node_count;
+                } else {
                     break;
                 }
-                case 3: {
-                    x86::ept_pdpt_entry_t pml3_entry = m_table->pml3.entry[index];
-                    x86::ept_pdt_t& pml2_table = new_node->m_table->pml2;
-
-                    for (size_t i = 0; i < x86::ept_pdt_entry_count_v; ++i) {
-                        pml2_table.entry[i] = {};
-                        pml2_table.entry[i].semantics.for_2mb_page.read_access = pml3_entry.semantics.for_1gb_page.read_access;
-                        pml2_table.entry[i].semantics.for_2mb_page.write_access = pml3_entry.semantics.for_1gb_page.write_access;
-                        pml2_table.entry[i].semantics.for_2mb_page.execute_access = pml3_entry.semantics.for_1gb_page.read_access;
-                        pml2_table.entry[i].semantics.for_2mb_page.memory_type = pml3_entry.semantics.for_1gb_page.memory_type;
-                        pml2_table.entry[i].semantics.for_2mb_page.ignore_pat_memory_type = pml3_entry.semantics.for_1gb_page.ignore_pat_memory_type;
-                        pml2_table.entry[i].semantics.for_2mb_page.always_one = 1;
-                        pml2_table.entry[i].semantics.for_2mb_page.user_mode_execute_access = pml3_entry.semantics.for_1gb_page.user_mode_execute_access;
-
-                        auto _1gb_page_physical_address = x86::pfn_to_address(pml3_entry.semantics.for_1gb_page.page_physical_address, x86::_4kb_page_traits{});
-                        auto _sub_2mb_page_physical_address = _1gb_page_physical_address + i * 2_mb_size_v;
-
-                        pml2_table.entry[i].semantics.for_2mb_page.page_physical_address = x86::address_to_pfn(_sub_2mb_page_physical_address, x86::_4kb_page_traits{});
-                        pml2_table.entry[i].semantics.for_2mb_page.verify_guest_paging = pml3_entry.semantics.for_1gb_page.verify_guest_paging;
-                        pml2_table.entry[i].semantics.for_2mb_page.paging_write_access = pml3_entry.semantics.for_1gb_page.paging_write_access;
-                        pml2_table.entry[i].semantics.for_2mb_page.allow_supervisor_shadow_stack_access = pml3_entry.semantics.for_1gb_page.allow_supervisor_shadow_stack_access;
-                        pml2_table.entry[i].semantics.for_2mb_page.suppress_ve_exception = pml3_entry.semantics.for_1gb_page.suppress_ve_exception;
-                    }
-                }
-                default:
-                    invoke_debugger_noreturn();
             }
 
-            new_node->attach(this, index);
-        }
+            if (level <= 1) {
+                pml1_node = pml2_node->get_child(x86::index_of_pml<2>(gpa_base));
+                if (pml1_node) {
+                    --required_node_count;
+                } else {
+                    break;
+                }
+            }
+        } while (false);
 
-        return new_node;
+        return cache_reserve_at_least(required_node_count);
     }
 
-    [[nodiscard]]
-    dynamic_ept::node_t* dynamic_ept::node_t::get_child(uint32_t index) const noexcept {
-        constexpr uint32_t mid = 512 / 2;
+    expected<void, nt_status> dynamic_ept::modify_page(size_t page_size, x86::guest_paddr_t gpa_base, x86::host_paddr_t hpa_base) noexcept {
+        int level;
+        node* target_node;
+        uint32_t target_index;
 
-        if (index < mid) {
-            auto* p = m_children;
-            do {
-                if (index == p->get_table_index()) {
-                    return p;
+        switch (page_size) {
+            case 4_KiB_uz:
+                if (x86::page_offset<4_KiB_uz>(gpa_base) == 0 && x86::page_offset<4_KiB_uz>(hpa_base) == 0) {
+                    level = 1;
+                    target_index = x86::index_of_pml<1>(gpa_base);
+                    break;
                 } else {
-                    p = p->m_forward;
+                    return unexpected{ nt_status_invalid_address_v };
                 }
-            } while (p != m_children);
+            case 2_MiB_uz:
+                if (x86::page_offset<2_MiB_uz>(gpa_base) == 0 && x86::page_offset<2_MiB_uz>(hpa_base) == 0) {
+                    level = 2;
+                    target_index = x86::index_of_pml<2>(gpa_base);
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            case 1_GiB_uz:
+                if (x86::page_offset<1_GiB_uz>(gpa_base) == 0 && x86::page_offset<1_GiB_uz>(hpa_base) == 0) {
+                    level = 3;
+                    target_index = x86::index_of_pml<3>(gpa_base);
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            default:
+                return unexpected{ nt_status_invalid_parameter_v };
+        }
+
+        target_node = node_get(level, gpa_base);
+
+        if (target_node) {
+            switch (page_size) {
+                case 4_KiB_uz:
+                    if (target_node->is_page_present<1>(target_index)) {
+                        target_node->set_page_entry<1>(target_index, hpa_base);
+                    }
+                    break;
+                case 2_MiB_uz:
+                    if (target_node->is_page_present<2>(target_index)) {
+                        target_node->set_page_entry<2>(target_index, hpa_base);
+                    }
+                    break;
+                case 1_GiB_uz:
+                    if (target_node->is_page_present<3>(target_index)) {
+                        target_node->set_page_entry<3>(target_index, hpa_base);
+                    }
+                    break;
+                default:
+                    std::unreachable();
+            }
+        }
+
+        return unexpected{ nt_status_not_found_v };
+    }
+
+    expected<void, nt_status> dynamic_ept::modify_page(size_t page_size, x86::guest_paddr_t gpa_base, setting_flags flags) noexcept {
+        int level;
+        node* target_node;
+        uint32_t target_index;
+
+        if (flags.is_present() == false) {
+            return unexpected{ nt_status_invalid_parameter_v };
+        }
+
+        switch (page_size) {
+            case 4_KiB_uz:
+                if (x86::page_offset<4_KiB_uz>(gpa_base) == 0) {
+                    level = 1;
+                    target_index = x86::index_of_pml<1>(gpa_base);
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            case 2_MiB_uz:
+                if (x86::page_offset<2_MiB_uz>(gpa_base) == 0) {
+                    level = 2;
+                    target_index = x86::index_of_pml<2>(gpa_base);
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            case 1_GiB_uz:
+                if (x86::page_offset<1_GiB_uz>(gpa_base) == 0) {
+                    level = 3;
+                    target_index = x86::index_of_pml<3>(gpa_base);
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            default:
+                return unexpected{ nt_status_invalid_parameter_v };
+        }
+
+        target_node = node_get(level, gpa_base);
+        if (target_node == nullptr) {
+            return unexpected{ nt_status_not_found_v };
+        }
+
+        switch (page_size) {
+            case 4_KiB_uz:
+                if (target_node->is_page_present<1>(target_index)) {
+                    target_node->set_page_entry<1>(target_index, flags);
+                }
+                break;
+            case 2_MiB_uz:
+                if (target_node->is_page_present<2>(target_index)) {
+                    target_node->set_page_entry<2>(target_index, flags);
+                }
+                break;
+            case 1_GiB_uz:
+                if (target_node->is_page_present<3>(target_index)) {
+                    target_node->set_page_entry<3>(target_index, flags);
+                }
+                break;
+            default:
+                std::unreachable();
+        }
+
+        return unexpected{ nt_status_not_found_v };
+    }
+
+    _When_(high_irql == true, _IRQL_requires_max_(HIGH_LEVEL))
+    _When_(high_irql == false, _IRQL_requires_max_(DISPATCH_LEVEL))
+    expected<void, nt_status> dynamic_ept::commit_page(size_t page_size, x86::guest_paddr_t gpa_base, x86::host_paddr_t hpa_base, setting_flags flags, bool high_irql) noexcept {
+        int level;
+        node* target_node;
+        uint32_t target_index;
+
+        if (flags.is_present() == false) {
+            return unexpected{ nt_status_invalid_parameter_v };
+        }
+
+        switch (page_size) {
+            case 4_KiB_uz:
+                if (x86::page_offset<4_KiB_uz>(gpa_base) == 0 && x86::page_offset<4_KiB_uz>(hpa_base) == 0) {
+                    level = 1;
+                    target_index = x86::index_of_pml<1>(gpa_base);
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            case 2_MiB_uz:
+                if (x86::page_offset<2_MiB_uz>(gpa_base) == 0 && x86::page_offset<2_MiB_uz>(hpa_base) == 0) {
+                    level = 2;
+                    target_index = x86::index_of_pml<2>(gpa_base);
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            case 1_GiB_uz:
+                if (x86::page_offset<1_GiB_uz>(gpa_base) == 0 && x86::page_offset<1_GiB_uz>(hpa_base) == 0) {
+                    level = 3;
+                    target_index = x86::index_of_pml<3>(gpa_base);
+                    break;
+                } else {
+                    return unexpected{ nt_status_invalid_address_v };
+                }
+            default:
+                return unexpected{ nt_status_invalid_parameter_v };
+        }
+
+        {
+            expected<node*, nt_status> expt_target_node = node_ensure(level, gpa_base, high_irql);
+            if (expt_target_node.has_value()) {
+                target_node = expt_target_node.value();
+            } else {
+                return unexpected{ expt_target_node.error() };
+            }
+        }
+
+        if (node* next_level_node = target_node->get_child(target_index)) {
+            if (high_irql) {
+                node_free_to_cache(next_level_node->detach());
+            } else {
+                node_free(next_level_node->detach());
+            }
+        }
+
+        switch (page_size) {
+            case 4_KiB_uz:
+                //target_node->table->pml1.entries[target_index] = {};
+                target_node->set_page_entry<1>(target_index, hpa_base);
+                target_node->set_page_entry<1>(target_index, flags);
+                break;
+            case 2_MiB_uz:
+                //target_node->table->pml2.entries[target_index] = {};
+                target_node->set_page_entry<2>(target_index, hpa_base);
+                target_node->set_page_entry<2>(target_index, flags);
+                break;
+            case 1_GiB_uz:
+                //target_node->table->pml3.entries[target_index] = {};
+                target_node->set_page_entry<3>(target_index, hpa_base);
+                target_node->set_page_entry<3>(target_index, flags);
+                break;
+            default:
+                std::unreachable();
+        }
+
+        return {};
+    }
+
+    expected<dynamic_ept::page_description, nt_status> dynamic_ept::find_page(x86::guest_paddr_t gpa) const noexcept {
+        node* pml3_node;
+        node* pml2_node;
+        node* pml1_node;
+
+        uint32_t pml4_index;
+        uint32_t pml3_index;
+        uint32_t pml2_index;
+        uint32_t pml1_index;
+        
+        pml4_index = x86::index_of_pml<4>(gpa);
+
+        pml3_node = m_top_level_node->get_child(pml4_index);
+        if (pml3_node == nullptr) {
+            return unexpected{ nt_status_not_found_v };
+        }
+
+        pml3_index = x86::index_of_pml<3>(gpa);
+
+        if (pml3_node->is_page_present<3>(pml3_index)) {
+            return page_description::load_from(pml3_node->table->pml3.entries[pml3_index].semantics.for_1GiB_page);
+        }
+
+        pml2_node = pml3_node->get_child(pml3_index);
+        if (pml2_node == nullptr) {
+            return unexpected{ nt_status_not_found_v };
+        }
+
+        pml2_index = x86::index_of_pml<2>(gpa);
+
+        if (pml2_node->is_page_present<2>(pml2_index)) {
+            return page_description::load_from(pml2_node->table->pml2.entries[pml2_index].semantics.for_2MiB_page);
+        }
+
+        pml1_node = pml2_node->get_child(pml2_index);
+        if (pml1_node == nullptr) {
+            return unexpected{ nt_status_not_found_v };
+        }
+
+        pml1_index = x86::index_of_pml<1>(gpa);
+
+        if (pml1_node->is_page_present<1>(pml1_index)) {
+            return page_description::load_from(pml1_node->table->pml1.entries[pml1_index].semantics);
         } else {
-            auto* list_last = m_children->m_backward;
-            auto* p = list_last;
-            do {
-                if (index == p->get_table_index()) {
-                    return p;
-                } else {
-                    p = p->m_backward;
-                }
-            } while (p != list_last);
+            return unexpected{ nt_status_not_found_v };
         }
-
-        return nullptr;
     }
 
-    [[nodiscard]]
-    dynamic_ept::node_t* dynamic_ept::node_t::get_child_lowerbound(uint32_t bound) const noexcept {
-        constexpr uint32_t mid = 512 / 2;
+    expected<void, nt_status> dynamic_ept::uncommit_page(size_t page_size, x86::guest_paddr_t gpa_base) noexcept {
+        node* pml3_node;
+        node* pml2_node;
+        node* pml1_node;
 
-        if (bound < mid) {
-            auto* list_first = m_children;
-            auto* p = list_first;
+        uint32_t pml4_index;
+        uint32_t pml3_index;
+        uint32_t pml2_index;
+        uint32_t pml1_index;
 
-            do {
-                if (bound <= p->get_table_index()) {
-                    return p;
+        if (page_size == 4_KiB_uz || page_size == 2_MiB_uz || page_size == 1_GiB_uz) {
+            pml4_index = x86::index_of_pml<4>(gpa_base);
+
+            pml3_node = m_top_level_node->get_child(pml4_index);
+            if (pml3_node == nullptr) {
+                return unexpected{ nt_status_not_found_v };
+            }
+
+            pml3_index = x86::index_of_pml<3>(gpa_base);
+
+            if (page_size == 1_GiB_uz) {
+                if (pml3_node->is_page_present<3>(pml3_index)) {
+                    pml3_node->table->pml3.entries[pml3_index] = {};
+                    return {};
                 } else {
-                    p = p->m_forward;
+                    return unexpected{ nt_status_not_found_v };
                 }
-            } while (p != list_first);
+            }
 
-            return nullptr;
+            pml2_node = pml3_node->get_child(pml3_index);
+            if (pml2_node == nullptr) {
+                return unexpected{ nt_status_not_found_v };
+            }
+
+            pml2_index = x86::index_of_pml<2>(gpa_base);
+
+            if (page_size == 2_MiB_uz) {
+                if (pml2_node->is_page_present<2>(pml2_index)) {
+                    pml2_node->table->pml2.entries[pml2_index] = {};
+                    return {};
+                } else {
+                    return unexpected{ nt_status_not_found_v };
+                }
+            }
+
+            pml1_node = pml2_node->get_child(pml2_index);
+            if (pml1_node == nullptr) {
+                return unexpected{ nt_status_not_found_v };
+            }
+
+            pml1_index = x86::index_of_pml<1>(gpa_base);
+
+            if (pml1_node->is_page_present<1>(pml1_index)) {
+                pml1_node->table->pml1.entries[pml1_index] = {};
+                return {};
+            } else {
+                return unexpected{ nt_status_not_found_v };
+            }
         } else {
-            auto* list_last = m_children->m_backward;
-            auto* p = list_last;
-
-            do {
-                if (p->get_table_index() < bound) {
-                    return bound <= p->m_forward->get_table_index() ? p->m_forward : nullptr;
-                } else {
-                    p = p->m_backward;
-                }
-            } while (p != list_last);
-
-            return m_children;
+            return unexpected{ nt_status_invalid_parameter_v };
         }
     }
-
-    [[nodiscard]]
-    dynamic_ept::node_t* dynamic_ept::node_t::get_child_upperbound(uint32_t bound) const noexcept {
-        constexpr uint32_t mid = 512 / 2;
-
-        if (bound < mid) {
-            auto* list_first = m_children;
-            auto* p = list_first;
-
-            do {
-                if (bound < p->get_table_index()) {
-                    return p;
-                } else {
-                    p = p->m_forward;
-                }
-            } while (p != list_first);
-
-            return nullptr;
-        } else {
-            auto* list_last = m_children->m_backward;
-            auto* p = list_last;
-
-            do {
-                if (p->get_table_index() <= bound) {
-                    return bound < p->m_forward->get_table_index() ? p->m_forward : nullptr;
-                } else {
-                    p = p->m_backward;
-                }
-            } while (p != list_last);
-
-            return m_children;
-        }
-    }
-
-    [[nodiscard]]
-    status_t dynamic_ept::init() noexcept {
-        auto node_allocator = lookaside_pool::create<node_t>(false);
-        if (!node_allocator) {
-            return status_t::insufficient_memory_v;
-        }
-
-        auto table_allocator = lookaside_pool::create<any_table_t>(false);
-        if (!table_allocator) {
-            return status_t::insufficient_memory_v;
-        }
-
-        node_t* root_node = node_t::create(node_allocator.get(), table_allocator.get(), false);
-        if (root_node) {
-            root_node->m_table_level = 4;
-        } else {
-            return status_t::insufficient_memory_v;
-        }
-
-        std::swap(m_node_allocator, node_allocator);
-        std::swap(m_table_allocator, table_allocator);
-        std::swap(m_root_node, root_node);
-
-        return status_t::success_v;
-    }
-
 }
