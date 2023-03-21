@@ -292,6 +292,11 @@ namespace siren {
         }
 
         [[nodiscard]]
+        constexpr bool has_error() const noexcept {
+            return !m_has_value;
+        }
+
+        [[nodiscard]]
         constexpr Ty& value() & noexcept {
             return m_value;
         }
@@ -530,6 +535,11 @@ namespace siren {
         [[nodiscard]]
         constexpr bool has_value() const noexcept {
             return m_has_value;
+        }
+
+        [[nodiscard]]
+        constexpr bool has_error() const noexcept {
+            return !m_has_value;
         }
 
         constexpr void value() & noexcept {}
