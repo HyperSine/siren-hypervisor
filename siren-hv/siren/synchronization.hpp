@@ -47,9 +47,7 @@ namespace siren {
             constexpr unsigned max_wait = 65536;    // inspired by https://rayanfam.com/topics/hypervisor-from-scratch-part-8/#designing-a-spinlock
 
             while (!try_lock()) {
-                for (unsigned i = 0; i < wait; ++i) {
-                    yield_cpu();
-                }
+                yield_cpu(wait);
 
                 // Don't call `yield_cpu` too many times. If the `wait` becomes too big,
                 // clamp it to the max_wait.
@@ -62,9 +60,7 @@ namespace siren {
             constexpr unsigned max_wait = 65536;    // inspired by https://rayanfam.com/topics/hypervisor-from-scratch-part-8/#designing-a-spinlock
 
             while (!try_lock_shared()) {
-                for (unsigned i = 0; i < wait; ++i) {
-                    yield_cpu();
-                }
+                yield_cpu(wait);
 
                 // Don't call `yield_cpu` too many times. If the `wait` becomes too big,
                 // clamp it to the max_wait.
@@ -132,13 +128,13 @@ namespace siren {
             m_owns = true;
         }
 
-        lock_guard(LockerTy& locker, std::adopt_lock_t) noexcept
+        lock_guard(LockerTy& locker, adopt_lock_t) noexcept
             : m_locker{ locker }, m_owns{ true } {}
 
-        lock_guard(LockerTy& locker, std::defer_lock_t) noexcept
+        lock_guard(LockerTy& locker, defer_lock_t) noexcept
             : m_locker{ locker }, m_owns{ false } {}
 
-        lock_guard(LockerTy& locker, std::defer_lock_t) noexcept
+        lock_guard(LockerTy& locker, try_to_lock_t) noexcept
             : m_locker{ locker }, m_owns{ m_locker.try_lock() } {}
 
         lock_guard(const lock_guard&) = delete;
