@@ -1,8 +1,10 @@
 #pragma once
 #include "paging.hpp"
+#include "../utility.hpp"
 
 namespace siren::x86 {
     struct memory_type_t {
+    public:
         uint8_t value;
 
         [[nodiscard]]
@@ -25,9 +27,17 @@ namespace siren::x86 {
             }
         }
 
-        template<intmax_t PageSize>
+    private:
+        static memory_type_t propose(mask_region_t<paddr_t> region) noexcept;
+
+    public:
+        template<size_t PageSize>
+            requires (PageSize == 4_Kiuz || PageSize == 2_Miuz || PageSize == 1_Giuz)
         [[nodiscard]]
-        static memory_type_t propose(paddr_t base, std::ratio<PageSize>) noexcept;
+        static memory_type_t propose_for_page(paddr_t base) noexcept {
+            constexpr paddr_t mask = PageSize - 1;
+            return propose({ .base = base, .mask = mask });
+        }
 
         template<typename Ty>
         [[nodiscard]]
@@ -44,13 +54,4 @@ namespace siren::x86 {
     constexpr memory_type_t memory_type_write_protected_v = { 5 };
     constexpr memory_type_t memory_type_write_back_v = { 6 };
     constexpr memory_type_t memory_type_reserved_v = { 0xff };
-
-    [[nodiscard]]
-    memory_type_t get_best_memory_type(paddr_t page_base, on_1GiB_page_t) noexcept;
-
-    [[nodiscard]]
-    memory_type_t get_best_memory_type(paddr_t page_base, on_2MiB_page_t) noexcept;
-
-    [[nodiscard]]
-    memory_type_t get_best_memory_type(paddr_t page_base, on_4KiB_page_t) noexcept;
 }

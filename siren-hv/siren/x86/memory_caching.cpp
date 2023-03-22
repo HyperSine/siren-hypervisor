@@ -1,7 +1,7 @@
 #include "memory_caching.hpp"
 #include "cpuid.hpp"
 #include "model_specific_registers.hpp"
-#include "../utility.hpp"
+#include "../synchronization.hpp"
 
 namespace siren::x86 {
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -23,79 +23,132 @@ namespace siren::x86 {
     //    - For overlaps not defined by the above rules, processor behavior is undefined.
     // 
     // 3. If no fixed or variable memory range matches, the processor uses the default memory type.
-    [[nodiscard]]
-    static memory_type_t memory_type_propose(mask_region_t<paddr_t> region) noexcept {
+    memory_type_t memory_type_t::propose(mask_region_t<paddr_t> region) noexcept {
         using namespace ::siren::x86::address_literals;
-        if (0x10000_paddr_v <= region.base) {
-            if (cpuid<1>().semantics.edx.mtrr == 0) {
-                return memory_type_uncacheable_v;
+
+        static once_flag once;
+
+        static bool cpuid_mtrr_feature;
+        static msr_t<IA32_MTRRCAP> ia32_mtrr_cap;
+        static msr_t<IA32_MTRR_DEF_TYPE> ia32_mtrr_def_type;
+        static msr_t<IA32_MTRR_FIX64K_00000> ia32_mtrr_fix64k_00000_80000;
+        static msr_t<IA32_MTRR_FIX16K_80000> ia32_mtrr_fix16k_80000_c0000[2];
+        static msr_t<IA32_MTRR_FIX4K_C0000> ia32_mtrr_fix4k_c0000_100000[8];
+        static msr_t<IA32_MTRR_PHYSBASE0> ia32_mtrr_physbase_00_100[256];
+        static msr_t<IA32_MTRR_PHYSMASK0> ia32_mtrr_physmask_00_100[256];
+
+        once.call_once(
+            []() {
+                cpuid_mtrr_feature = cpuid<1>().semantics.edx.mtrr != 0;
+                if (cpuid_mtrr_feature) {
+                    ia32_mtrr_cap = read_msr<IA32_MTRRCAP>();
+                    ia32_mtrr_def_type = read_msr<IA32_MTRR_DEF_TYPE>();
+
+                    if (ia32_mtrr_def_type.semantics.fixed_range_mtrrs_enable) {
+                        ia32_mtrr_fix64k_00000_80000 = read_msr<IA32_MTRR_FIX64K_00000>();
+
+                        ia32_mtrr_fix16k_80000_c0000[0] = read_msr<IA32_MTRR_FIX16K_80000>();
+                        ia32_mtrr_fix16k_80000_c0000[1].storage = read_msr<IA32_MTRR_FIX16K_A0000>().storage;
+
+                        ia32_mtrr_fix4k_c0000_100000[0] = read_msr<IA32_MTRR_FIX4K_C0000>();
+                        ia32_mtrr_fix4k_c0000_100000[1].storage = read_msr<IA32_MTRR_FIX4K_C8000>().storage;
+                        ia32_mtrr_fix4k_c0000_100000[2].storage = read_msr<IA32_MTRR_FIX4K_D0000>().storage;
+                        ia32_mtrr_fix4k_c0000_100000[3].storage = read_msr<IA32_MTRR_FIX4K_D8000>().storage;
+                        ia32_mtrr_fix4k_c0000_100000[4].storage = read_msr<IA32_MTRR_FIX4K_E0000>().storage;
+                        ia32_mtrr_fix4k_c0000_100000[5].storage = read_msr<IA32_MTRR_FIX4K_E8000>().storage;
+                        ia32_mtrr_fix4k_c0000_100000[6].storage = read_msr<IA32_MTRR_FIX4K_F0000>().storage;
+                        ia32_mtrr_fix4k_c0000_100000[7].storage = read_msr<IA32_MTRR_FIX4K_F8000>().storage;
+                    }
+                    
+                    for (uint32_t i = 0, count = ia32_mtrr_cap.semantics.variable_range_mtrrs_count; i < count; ++i) {
+                        ia32_mtrr_physbase_00_100[i].storage = read_msr(IA32_MTRR_PHYSBASE0 + 2 * i);
+                        ia32_mtrr_physmask_00_100[i].storage = read_msr(IA32_MTRR_PHYSMASK0 + 2 * i);
+                    }
+                }
+            }
+        );
+
+        if (cpuid_mtrr_feature == false) {
+            return memory_type_uncacheable_v;
+        }
+
+        // all MTRRs are disabled when clear, and the UC memory type is applied to all of physical memory.
+        if (ia32_mtrr_def_type.semantics.mtrrs_enable == 0) {
+            return memory_type_uncacheable_v;
+        }
+
+        if (ia32_mtrr_def_type.semantics.fixed_range_mtrrs_enable && region.base < 0x10000_paddr_v) {
+            for (uint32_t i = 0; i < 8; ++i) {
+                constexpr paddr_t region_size = 64_Kiuz;
+                
+                mask_region_t<paddr_t> fix64k_region = 
+                    { .base = 0x00000 + region_size * i, .mask = ~(region_size - 1) };
+
+                if (fix64k_region.contains(region)) {
+                    return memory_type_t{ ia32_mtrr_fix64k_00000_80000.semantics.memory_type[i] };
+                }
             }
 
-            paddr_t max_physical_address = get_max_physical_address();
-            auto ia32_mtrrcap = read_msr<IA32_MTRRCAP>();
-            auto ia32_mtrr_def_type = read_msr<IA32_MTRR_DEF_TYPE>();
+            for (uint32_t i = 0; i < 2; ++i) {
+                for (uint32_t j = 0; j < 8; ++j) {
+                    constexpr paddr_t region_size = 16_Kiuz;
 
-            // all MTRRs are disabled when clear, and the UC memory type is applied to all of physical memory.
-            if (ia32_mtrr_def_type.semantics.mtrrs_enable == 0) {
-                return memory_type_uncacheable_v;
-            }
+                    mask_region_t<paddr_t> fix16k_region =
+                        { .base = 0x80000_paddr_v + region_size * (8 * i + j), .mask = ~(region_size - 1)};
 
-            // MTRRs are enabled when set; 
-            // all MTRRs are disabled when clear, and the UC memory type is applied to all of physical memory.
-            auto mtrr_default_memory_type = memory_type_t::cast_from(ia32_mtrr_def_type.semantics.default_memory_type);
-            auto mtrr_variable_count = static_cast<uint32_t>(ia32_mtrrcap.semantics.variable_range_mtrrs_count);
-
-            auto memory_type_candidate = memory_type_reserved_v;
-            
-            for (uint32_t i = 0; i < mtrr_variable_count; ++i) {
-                msr_t<IA32_MTRR_PHYSBASE0> ia32_mtrr_physbase;
-                msr_t<IA32_MTRR_PHYSMASK0> ia32_mtrr_physmask;
-
-                ia32_mtrr_physbase.storage = read_msr(IA32_MTRR_PHYSBASE0 + 2 * i);
-                ia32_mtrr_physmask.storage = read_msr(IA32_MTRR_PHYSMASK0 + 2 * i);
-
-                if (ia32_mtrr_physmask.semantics.valid) {
-                    mask_region_t<paddr_t> mtrr_region{
-                        .base = ia32_mtrr_physbase.semantics.physical_base,
-                        .mask = pfn_to_address(ia32_mtrr_physmask.semantics.physical_mask, on_4KiB_page_t{}) | ~max_physical_address
-                    };
-
-                    if (mtrr_region.contains(region)) {
-                        if (ia32_mtrr_physbase.semantics.memory_type == memory_type_uncacheable_v.value) {
-                            return memory_type_uncacheable_v;
-                        }
-
-                        if (ia32_mtrr_physbase.semantics.memory_type == memory_type_write_back_v.value && (memory_type_candidate == memory_type_write_through_v || memory_type_candidate == memory_type_write_back_v)) {
-                            continue;
-                        } else {
-                            memory_type_candidate = memory_type_t::cast_from(ia32_mtrr_physbase.semantics.memory_type);
-                        }
-                    } else if (mtrr_region.disjoints(region)) {
-                        // just ignore
-                    } else {
-                        return memory_type_reserved_v;
+                    if (fix16k_region.contains(region)) {
+                        return memory_type_t{ ia32_mtrr_fix16k_80000_c0000[i].semantics.memory_type[j]};
                     }
                 }
             }
 
-            return memory_type_candidate.is_reserved() ? mtrr_default_memory_type : memory_type_candidate;
-        } else {
-            return memory_type_reserved_v;
+            for (uint32_t i = 0; i < 8; ++i) {
+                for (uint32_t j = 0; j < 8; ++j) {
+                    constexpr paddr_t region_size = 4_Kiuz;
+
+                    mask_region_t<paddr_t> fix4k_region =
+                        { .base = 0xc0000_paddr_v + region_size * (8 * i + j), .mask = ~(region_size - 1) };
+
+                    if (fix4k_region.contains(region)) {
+                        return memory_type_t{ ia32_mtrr_fix4k_c0000_100000[i].semantics.memory_type[j] };
+                    }
+                }
+            }
         }
-    }
 
-    template<>
-    memory_type_t memory_type_t::propose(paddr_t base, on_4KiB_page_t) noexcept {
-        return memory_type_propose({ .base = base, .mask = ~(4_KiB_uz - 1) });
-    }
+        auto memory_type_default = memory_type_t::cast_from(ia32_mtrr_def_type.semantics.default_memory_type);
+        auto memory_type_candidate = memory_type_reserved_v;
 
-    template<>
-    memory_type_t memory_type_t::propose(paddr_t base, on_2MiB_page_t) noexcept {
-        return memory_type_propose({ .base = base, .mask = ~(2_MiB_uz - 1) });
-    }
+        auto max_physical_address = get_max_physical_address();
 
-    template<>
-    memory_type_t memory_type_t::propose(paddr_t base, on_1GiB_page_t) noexcept {
-        return memory_type_propose({ .base = base, .mask = ~(1_GiB_uz - 1) });
+        for (uint32_t i = 0, count = ia32_mtrr_cap.semantics.variable_range_mtrrs_count; i < count; ++i) {
+            if (ia32_mtrr_physmask_00_100[i].semantics.valid) {
+                auto memory_type_current =
+                    memory_type_t::cast_from(ia32_mtrr_physbase_00_100[i].semantics.memory_type);
+
+                mask_region_t<paddr_t> variable_region = {
+                    .base = pfn_to_address<4_Kiuz>(ia32_mtrr_physbase_00_100[i].semantics.physical_base),
+                    .mask = pfn_to_address<4_Kiuz>(ia32_mtrr_physmask_00_100[i].semantics.physical_mask) | ~max_physical_address
+                };
+
+                if (variable_region.contains(region)) {
+                    if (memory_type_current == memory_type_uncacheable_v) {
+                        return memory_type_uncacheable_v;
+                    }
+
+                    if (memory_type_current == memory_type_write_back_v && (memory_type_candidate == memory_type_write_through_v || memory_type_candidate == memory_type_write_back_v)) {
+                        continue;
+                    } else {
+                        memory_type_candidate = memory_type_current;
+                    }
+                } else if (variable_region.disjoints(region)) {
+                    // just ignore
+                } else {
+                    return memory_type_reserved_v;
+                }
+            }
+        }
+
+        return memory_type_candidate.is_reserved() ? memory_type_default : memory_type_candidate;
     }
 }
