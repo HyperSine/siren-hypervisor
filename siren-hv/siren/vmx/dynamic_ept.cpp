@@ -518,7 +518,7 @@ namespace siren::vmx {
                     pml1_table.entries[i].semantics.user_mode_execute_access = page_entry.semantics.for_2MiB_page.user_mode_execute_access;
 
                     x86::paddr_t _2MiB_page_paddr = x86::pfn_to_address(page_entry.semantics.for_2MiB_page.page_physical_address, x86::on_4KiB_page_t{});
-                    x86::paddr_t _sub_4KiB_page_paddr = _2MiB_page_paddr + i * 4_KiB_uz;
+                    x86::paddr_t _sub_4KiB_page_paddr = _2MiB_page_paddr + i * 4_Kiuz;
 
                     pml1_table.entries[i].semantics.page_physical_address = x86::address_to_pfn(_sub_4KiB_page_paddr, x86::on_4KiB_page_t{});
                     pml1_table.entries[i].semantics.verify_guest_paging = page_entry.semantics.for_2MiB_page.verify_guest_paging;
@@ -544,7 +544,7 @@ namespace siren::vmx {
                     pml2_table.entries[i].semantics.for_2MiB_page.user_mode_execute_access = pml3_entry.semantics.for_1GiB_page.user_mode_execute_access;
 
                     auto _1GiB_page_paddr = x86::pfn_to_address(pml3_entry.semantics.for_1GiB_page.page_physical_address, x86::on_4KiB_page_t{});
-                    auto _sub_2MiB_page_paddr = _1GiB_page_paddr + i * 2_MiB_uz;
+                    auto _sub_2MiB_page_paddr = _1GiB_page_paddr + i * 2_Miuz;
 
                     pml2_table.entries[i].semantics.for_2MiB_page.page_physical_address = x86::address_to_pfn(_sub_2MiB_page_paddr, x86::on_4KiB_page_t{});
                     pml2_table.entries[i].semantics.for_2MiB_page.verify_guest_paging = pml3_entry.semantics.for_1GiB_page.verify_guest_paging;
@@ -845,22 +845,22 @@ namespace siren::vmx {
         int level;
 
         switch (page_size) {
-            case 4_KiB_uz:
-                if (x86::page_offset<4_KiB_uz>(gpa_base) == 0) {
+            case 4_Kiuz:
+                if (x86::page_offset<4_Kiuz>(gpa_base) == 0) {
                     level = 1;
                     break;
                 } else {
                     return unexpected{ nt_status_invalid_address_v };
                 }
-            case 2_MiB_uz:
-                if (x86::page_offset<2_MiB_uz>(gpa_base) == 0) {
+            case 2_Miuz:
+                if (x86::page_offset<2_Miuz>(gpa_base) == 0) {
                     level = 2;
                     break;
                 } else {
                     return unexpected{ nt_status_invalid_address_v };
                 }
-            case 1_GiB_uz:
-                if (x86::page_offset<1_GiB_uz>(gpa_base) == 0) {
+            case 1_Giuz:
+                if (x86::page_offset<1_Giuz>(gpa_base) == 0) {
                     level = 3;
                     break;
                 } else {
@@ -912,24 +912,24 @@ namespace siren::vmx {
         uint32_t target_index;
 
         switch (page_size) {
-            case 4_KiB_uz:
-                if (x86::page_offset<4_KiB_uz>(gpa_base) == 0 && x86::page_offset<4_KiB_uz>(hpa_base) == 0) {
+            case 4_Kiuz:
+                if (x86::page_offset<4_Kiuz>(gpa_base) == 0 && x86::page_offset<4_Kiuz>(hpa_base) == 0) {
                     level = 1;
                     target_index = x86::index_of_pml<1>(gpa_base);
                     break;
                 } else {
                     return unexpected{ nt_status_invalid_address_v };
                 }
-            case 2_MiB_uz:
-                if (x86::page_offset<2_MiB_uz>(gpa_base) == 0 && x86::page_offset<2_MiB_uz>(hpa_base) == 0) {
+            case 2_Miuz:
+                if (x86::page_offset<2_Miuz>(gpa_base) == 0 && x86::page_offset<2_Miuz>(hpa_base) == 0) {
                     level = 2;
                     target_index = x86::index_of_pml<2>(gpa_base);
                     break;
                 } else {
                     return unexpected{ nt_status_invalid_address_v };
                 }
-            case 1_GiB_uz:
-                if (x86::page_offset<1_GiB_uz>(gpa_base) == 0 && x86::page_offset<1_GiB_uz>(hpa_base) == 0) {
+            case 1_Giuz:
+                if (x86::page_offset<1_Giuz>(gpa_base) == 0 && x86::page_offset<1_Giuz>(hpa_base) == 0) {
                     level = 3;
                     target_index = x86::index_of_pml<3>(gpa_base);
                     break;
@@ -944,17 +944,17 @@ namespace siren::vmx {
 
         if (target_node) {
             switch (page_size) {
-                case 4_KiB_uz:
+                case 4_Kiuz:
                     if (target_node->is_page_present<1>(target_index)) {
                         target_node->set_page_entry<1>(target_index, hpa_base);
                     }
                     break;
-                case 2_MiB_uz:
+                case 2_Miuz:
                     if (target_node->is_page_present<2>(target_index)) {
                         target_node->set_page_entry<2>(target_index, hpa_base);
                     }
                     break;
-                case 1_GiB_uz:
+                case 1_Giuz:
                     if (target_node->is_page_present<3>(target_index)) {
                         target_node->set_page_entry<3>(target_index, hpa_base);
                     }
@@ -977,24 +977,24 @@ namespace siren::vmx {
         }
 
         switch (page_size) {
-            case 4_KiB_uz:
-                if (x86::page_offset<4_KiB_uz>(gpa_base) == 0) {
+            case 4_Kiuz:
+                if (x86::page_offset<4_Kiuz>(gpa_base) == 0) {
                     level = 1;
                     target_index = x86::index_of_pml<1>(gpa_base);
                     break;
                 } else {
                     return unexpected{ nt_status_invalid_address_v };
                 }
-            case 2_MiB_uz:
-                if (x86::page_offset<2_MiB_uz>(gpa_base) == 0) {
+            case 2_Miuz:
+                if (x86::page_offset<2_Miuz>(gpa_base) == 0) {
                     level = 2;
                     target_index = x86::index_of_pml<2>(gpa_base);
                     break;
                 } else {
                     return unexpected{ nt_status_invalid_address_v };
                 }
-            case 1_GiB_uz:
-                if (x86::page_offset<1_GiB_uz>(gpa_base) == 0) {
+            case 1_Giuz:
+                if (x86::page_offset<1_Giuz>(gpa_base) == 0) {
                     level = 3;
                     target_index = x86::index_of_pml<3>(gpa_base);
                     break;
@@ -1011,17 +1011,17 @@ namespace siren::vmx {
         }
 
         switch (page_size) {
-            case 4_KiB_uz:
+            case 4_Kiuz:
                 if (target_node->is_page_present<1>(target_index)) {
                     target_node->set_page_entry<1>(target_index, flags);
                 }
                 break;
-            case 2_MiB_uz:
+            case 2_Miuz:
                 if (target_node->is_page_present<2>(target_index)) {
                     target_node->set_page_entry<2>(target_index, flags);
                 }
                 break;
-            case 1_GiB_uz:
+            case 1_Giuz:
                 if (target_node->is_page_present<3>(target_index)) {
                     target_node->set_page_entry<3>(target_index, flags);
                 }
@@ -1045,24 +1045,24 @@ namespace siren::vmx {
         }
 
         switch (page_size) {
-            case 4_KiB_uz:
-                if (x86::page_offset<4_KiB_uz>(gpa_base) == 0 && x86::page_offset<4_KiB_uz>(hpa_base) == 0) {
+            case 4_Kiuz:
+                if (x86::page_offset<4_Kiuz>(gpa_base) == 0 && x86::page_offset<4_Kiuz>(hpa_base) == 0) {
                     level = 1;
                     target_index = x86::index_of_pml<1>(gpa_base);
                     break;
                 } else {
                     return unexpected{ nt_status_invalid_address_v };
                 }
-            case 2_MiB_uz:
-                if (x86::page_offset<2_MiB_uz>(gpa_base) == 0 && x86::page_offset<2_MiB_uz>(hpa_base) == 0) {
+            case 2_Miuz:
+                if (x86::page_offset<2_Miuz>(gpa_base) == 0 && x86::page_offset<2_Miuz>(hpa_base) == 0) {
                     level = 2;
                     target_index = x86::index_of_pml<2>(gpa_base);
                     break;
                 } else {
                     return unexpected{ nt_status_invalid_address_v };
                 }
-            case 1_GiB_uz:
-                if (x86::page_offset<1_GiB_uz>(gpa_base) == 0 && x86::page_offset<1_GiB_uz>(hpa_base) == 0) {
+            case 1_Giuz:
+                if (x86::page_offset<1_Giuz>(gpa_base) == 0 && x86::page_offset<1_Giuz>(hpa_base) == 0) {
                     level = 3;
                     target_index = x86::index_of_pml<3>(gpa_base);
                     break;
@@ -1091,17 +1091,17 @@ namespace siren::vmx {
         }
 
         switch (page_size) {
-            case 4_KiB_uz:
+            case 4_Kiuz:
                 //target_node->table->pml1.entries[target_index] = {};
                 target_node->set_page_entry<1>(target_index, hpa_base);
                 target_node->set_page_entry<1>(target_index, flags);
                 break;
-            case 2_MiB_uz:
+            case 2_Miuz:
                 //target_node->table->pml2.entries[target_index] = {};
                 target_node->set_page_entry<2>(target_index, hpa_base);
                 target_node->set_page_entry<2>(target_index, flags);
                 break;
-            case 1_GiB_uz:
+            case 1_Giuz:
                 //target_node->table->pml3.entries[target_index] = {};
                 target_node->set_page_entry<3>(target_index, hpa_base);
                 target_node->set_page_entry<3>(target_index, flags);
@@ -1171,7 +1171,7 @@ namespace siren::vmx {
         uint32_t pml2_index;
         uint32_t pml1_index;
 
-        if (page_size == 4_KiB_uz || page_size == 2_MiB_uz || page_size == 1_GiB_uz) {
+        if (page_size == 4_Kiuz || page_size == 2_Miuz || page_size == 1_Giuz) {
             pml4_index = x86::index_of_pml<4>(gpa_base);
 
             pml3_node = m_top_level_node->get_child(pml4_index);
@@ -1181,7 +1181,7 @@ namespace siren::vmx {
 
             pml3_index = x86::index_of_pml<3>(gpa_base);
 
-            if (page_size == 1_GiB_uz) {
+            if (page_size == 1_Giuz) {
                 if (pml3_node->is_page_present<3>(pml3_index)) {
                     pml3_node->table->pml3.entries[pml3_index] = {};
                     return {};
@@ -1197,7 +1197,7 @@ namespace siren::vmx {
 
             pml2_index = x86::index_of_pml<2>(gpa_base);
 
-            if (page_size == 2_MiB_uz) {
+            if (page_size == 2_Miuz) {
                 if (pml2_node->is_page_present<2>(pml2_index)) {
                     pml2_node->table->pml2.entries[pml2_index] = {};
                     return {};

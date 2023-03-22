@@ -85,165 +85,147 @@ namespace siren::x86 {
         }
     }
 
-    using on_4KiB_page_t = std::ratio<4_KiB_uz>;
-    using on_4MiB_page_t = std::ratio<4_MiB_uz>;
-    using on_2MiB_page_t = std::ratio<2_MiB_uz>;
-    using on_1GiB_page_t = std::ratio<1_GiB_uz>;
+    using on_4KiB_page_t = std::ratio<4_Kiuz>;
+    using on_4MiB_page_t = std::ratio<4_Miuz>;
+    using on_2MiB_page_t = std::ratio<2_Miuz>;
+    using on_1GiB_page_t = std::ratio<1_Giuz>;
 
     template<one_of<laddr32_t, laddr64_t> Ty>
     [[nodiscard]]
     constexpr Ty address_to_pfn(Ty address, on_4KiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(4_KiB_uz);
+        constexpr uint32_t shift = std::countr_zero(4_Kiuz);
         return static_cast<Ty>(address >> shift);
     }
 
     template<one_of<laddr32_t> Ty>
     [[nodiscard]]
     constexpr Ty address_to_pfn(Ty address, on_4MiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(4_MiB_uz);
+        constexpr uint32_t shift = std::countr_zero(4_Miuz);
         return static_cast<Ty>(address >> shift);
     }
 
     template<one_of<laddr64_t> Ty>
     [[nodiscard]]
     constexpr Ty address_to_pfn(Ty address, on_2MiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(2_MiB_uz);
+        constexpr uint32_t shift = std::countr_zero(2_Miuz);
         return static_cast<Ty>(address >> shift);
     }
 
     template<one_of<laddr64_t> Ty>
     [[nodiscard]]
     constexpr Ty address_to_pfn(Ty address, on_1GiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(1_GiB_uz);
+        constexpr uint32_t shift = std::countr_zero(1_Giuz);
         return static_cast<Ty>(address >> shift);
     }
 
     template<one_of<laddr32_t, laddr64_t> Ty>
     [[nodiscard]]
     constexpr Ty pfn_to_address(Ty pfn, on_4KiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(4_KiB_uz);
+        constexpr uint32_t shift = std::countr_zero(4_Kiuz);
         return static_cast<Ty>(pfn << shift);
     }
 
     template<one_of<laddr32_t> Ty>
     [[nodiscard]]
     constexpr Ty pfn_to_address(Ty pfn, on_4MiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(4_MiB_uz);
+        constexpr uint32_t shift = std::countr_zero(4_Miuz);
         return static_cast<Ty>(pfn << shift);
     }
 
     template<one_of<laddr64_t> Ty>
     [[nodiscard]]
     constexpr Ty pfn_to_address(Ty pfn, on_2MiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(2_MiB_uz);
+        constexpr uint32_t shift = std::countr_zero(2_Miuz);
         return static_cast<Ty>(pfn << shift);
     }
 
     template<one_of<laddr64_t> Ty>
     [[nodiscard]]
     constexpr Ty pfn_to_address(Ty pfn, on_1GiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(1_GiB_uz);
+        constexpr uint32_t shift = std::countr_zero(1_Giuz);
         return static_cast<Ty>(pfn << shift);
     }
 
-    template<one_of<laddr32_t, laddr64_t> Ty>
+    template<size_t PageSize, unsigned_integral_least<32> Ty>
     [[nodiscard]]
-    constexpr uint32_t page_offset(Ty address, on_4KiB_page_t) noexcept {
-        constexpr uint32_t mask = 4_KiB_uz - 1;
-        return static_cast<uint32_t>(Ty & mask);
+    constexpr Ty page_offset(Ty address) noexcept {
+        static_assert(std::has_single_bit(PageSize), "The size of a page must be non-zero and a power of 2.");
+        static_assert(PageSize - 1 <= std::numeric_limits<Ty>::max(), "Too big page.");
+        return address & static_cast<Ty>(PageSize - 1);
     }
 
-    template<one_of<laddr32_t> Ty>
-    [[nodiscard]]
-    constexpr uint32_t page_offset(Ty address, on_4MiB_page_t) noexcept {
-        constexpr uint32_t mask = 4_MiB_uz - 1;
-        return static_cast<uint32_t>(Ty & mask);
-    }
-
-    template<one_of<laddr64_t> Ty>
-    [[nodiscard]]
-    constexpr uint32_t page_offset(Ty address, on_2MiB_page_t) noexcept {
-        constexpr uint32_t mask = 2_MiB_uz - 1;
-        return static_cast<uint32_t>(Ty & mask);
-    }
-
-    template<one_of<laddr64_t> Ty>
-    [[nodiscard]]
-    constexpr uint32_t page_offset(Ty address, on_1GiB_page_t) noexcept {
-        constexpr uint32_t mask = 1_GiB_uz - 1;
-        return static_cast<uint32_t>(Ty & mask);
-    }
-
-    template<int Level>
+    template<int Level, unsigned_integral_exact<32> Ty>
         requires(1 <= Level && Level <= 2)    // 32-bits paging only has Page-Map-Level 1 ~ 2
     [[nodiscard]]
-    constexpr uint32_t index_of_pml(laddr32_t address) noexcept {
-        constexpr uint32_t pml_mask = (1u << 10u) - 1;
-        return static_cast<uint32_t>((address >> (12u + (Level - 1u) * 10u)) & pml_mask);
+    constexpr uint32_t index_of_pml(Ty address) noexcept {
+        constexpr int shift = 12 + (Level - 1) * 10;
+        constexpr uint32_t mask = (1u << 10u) - 1u;
+        return static_cast<uint32_t>(address >> shift) & mask;
     }
 
-    template<int Level>
+    template<int Level, unsigned_integral_exact<64> Ty>
         requires(1 <= Level && Level <= 5)    // 64-bits paging has 5 Page-Map-Levels at most
     [[nodiscard]]
-    constexpr uint32_t index_of_pml(laddr64_t address) noexcept {
-        constexpr uint32_t pml_mask = (1u << 9u) - 1;
-        return static_cast<uint32_t>((address >> (12u + (Level - 1u) * 9u)) & pml_mask);
+    constexpr uint32_t index_of_pml(Ty address) noexcept {
+        constexpr int shift = 12 + (Level - 1) * 9;
+        constexpr uint32_t mask = (1u << 9u) - 1u;
+        return static_cast<uint32_t>(address >> shift) & mask;
     }
 
     [[nodiscard]]
     constexpr laddr32_t make_address(on_4KiB_page_t, uint32_t pml2, uint32_t pml1, uint32_t offset) noexcept {
         constexpr uint32_t pml_mask = (1u << 10u) - 1;
-        constexpr uint32_t offset_mask = static_cast<uint32_t>(4_KiB_uz - 1);
+        constexpr uint32_t offset_mask = static_cast<uint32_t>(4_Kiuz - 1);
         return laddr64_t{
             uint64_t{ offset & offset_mask } |
-            uint64_t{ pml1 & pml_mask } << std::countr_zero(4_KiB_uz) |
-            uint64_t{ pml2 & pml_mask } << std::countr_zero(4_MiB_uz)
+            uint64_t{ pml1 & pml_mask } << std::countr_zero(4_Kiuz) |
+            uint64_t{ pml2 & pml_mask } << std::countr_zero(4_Miuz)
         };
     }
 
     [[nodiscard]]
     constexpr laddr64_t make_address(on_4KiB_page_t, uint32_t pml4, uint32_t pml3, uint32_t pml2, uint32_t pml1, uint32_t offset) noexcept {
         constexpr uint32_t pml_mask = (1u << 9u) - 1;
-        constexpr uint32_t offset_mask = static_cast<uint32_t>(4_KiB_uz - 1);
+        constexpr uint32_t offset_mask = static_cast<uint32_t>(4_Kiuz - 1);
         return laddr64_t{
             uint64_t{ offset & offset_mask } |
-            uint64_t{ pml1 & pml_mask } << std::countr_zero(4_KiB_uz) |
-            uint64_t{ pml2 & pml_mask } << std::countr_zero(2_MiB_uz) |
-            uint64_t{ pml3 & pml_mask } << std::countr_zero(1_GiB_uz) |
-            uint64_t{ pml4 & pml_mask } << std::countr_zero(512_GiB_uz)
+            uint64_t{ pml1 & pml_mask } << std::countr_zero(4_Kiuz) |
+            uint64_t{ pml2 & pml_mask } << std::countr_zero(2_Miuz) |
+            uint64_t{ pml3 & pml_mask } << std::countr_zero(1_Giuz) |
+            uint64_t{ pml4 & pml_mask } << std::countr_zero(512_Giuz)
         };
     }
 
     [[nodiscard]]
     constexpr laddr32_t make_address(on_2MiB_page_t, uint32_t pml2, uint32_t offset) noexcept {
         constexpr uint32_t pml_mask = (1u << 10u) - 1;
-        constexpr uint32_t offset_mask = static_cast<uint32_t>(4_MiB_uz - 1);
+        constexpr uint32_t offset_mask = static_cast<uint32_t>(4_Miuz - 1);
         return laddr64_t{
             uint64_t{ offset & offset_mask } |
-            uint64_t{ pml2 & pml_mask } << std::countr_zero(4_MiB_uz)
+            uint64_t{ pml2 & pml_mask } << std::countr_zero(4_Miuz)
         };
     }
 
     [[nodiscard]]
     constexpr laddr64_t make_address(on_2MiB_page_t, uint32_t pml4, uint32_t pml3, uint32_t pml2, uint32_t offset) noexcept {
         constexpr uint32_t pml_mask = (1u << 9u) - 1;
-        constexpr uint32_t offset_mask = static_cast<uint32_t>(2_MiB_uz - 1);
+        constexpr uint32_t offset_mask = static_cast<uint32_t>(2_Miuz - 1);
         return laddr64_t{
             uint64_t{ offset & offset_mask } |
-            uint64_t{ pml2 & pml_mask } << std::countr_zero(2_MiB_uz) |
-            uint64_t{ pml3 & pml_mask } << std::countr_zero(1_GiB_uz) |
-            uint64_t{ pml4 & pml_mask } << std::countr_zero(512_GiB_uz)
+            uint64_t{ pml2 & pml_mask } << std::countr_zero(2_Miuz) |
+            uint64_t{ pml3 & pml_mask } << std::countr_zero(1_Giuz) |
+            uint64_t{ pml4 & pml_mask } << std::countr_zero(512_Giuz)
         };
     }
 
     [[nodiscard]]
     constexpr laddr64_t make_address(on_1GiB_page_t, uint32_t pml4, uint32_t pml3, uint32_t offset) noexcept {
         constexpr uint32_t pml_mask = (1u << 9u) - 1;
-        constexpr uint32_t offset_mask = static_cast<uint32_t>(1_GiB_uz - 1);
+        constexpr uint32_t offset_mask = static_cast<uint32_t>(1_Giuz - 1);
         return laddr64_t{
             uint64_t{ offset & offset_mask } |
-            uint64_t{ pml3 & pml_mask } << std::countr_zero(1_GiB_uz) |
-            uint64_t{ pml4 & pml_mask } << std::countr_zero(512_GiB_uz)
+            uint64_t{ pml3 & pml_mask } << std::countr_zero(1_Giuz) |
+            uint64_t{ pml4 & pml_mask } << std::countr_zero(512_Giuz)
         };
     }
 

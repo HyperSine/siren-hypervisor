@@ -37,16 +37,16 @@ namespace siren::x86 {
     static_assert(sizeof(ept_pml4_entry_t::storage) == 8);
     static_assert(sizeof(ept_pml4_entry_t::storage) == sizeof(ept_pml4_entry_t::semantics));
 
-    struct alignas(4_KiB_uz) ept_pml4_t {
-        ept_pml4_entry_t entries[4_KiB_uz / sizeof(ept_pml4_entry_t)];
+    struct alignas(4_Kiuz) ept_pml4_t {
+        ept_pml4_entry_t entries[4_Kiuz / sizeof(ept_pml4_entry_t)];
 
         static constexpr size_t length() noexcept {
             return std::extent_v<decltype(ept_pml4_t::entries)>;
         }
     };
 
-    static_assert(alignof(ept_pml4_t) == 4_KiB_uz);
-    static_assert(sizeof(ept_pml4_t) == 4_KiB_uz);
+    static_assert(alignof(ept_pml4_t) == 4_Kiuz);
+    static_assert(sizeof(ept_pml4_t) == 4_Kiuz);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -109,16 +109,16 @@ namespace siren::x86 {
     static_assert(sizeof(ept_pdpt_entry_t::storage) == 8);
     static_assert(sizeof(ept_pdpt_entry_t::storage) == sizeof(ept_pdpt_entry_t::semantics));
 
-    struct alignas(4_KiB_uz) ept_pdpt_t {
-        ept_pdpt_entry_t entries[4_KiB_uz / sizeof(ept_pdpt_entry_t)];
+    struct alignas(4_Kiuz) ept_pdpt_t {
+        ept_pdpt_entry_t entries[4_Kiuz / sizeof(ept_pdpt_entry_t)];
 
         static constexpr size_t length() noexcept {
             return std::extent_v<decltype(ept_pdpt_t::entries)>;
         }
     };
 
-    static_assert(alignof(ept_pdpt_t) == 4_KiB_uz);
-    static_assert(sizeof(ept_pdpt_t) == 4_KiB_uz);
+    static_assert(alignof(ept_pdpt_t) == 4_Kiuz);
+    static_assert(sizeof(ept_pdpt_t) == 4_Kiuz);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -181,16 +181,16 @@ namespace siren::x86 {
     static_assert(sizeof(ept_pdt_entry_t::storage) == 8);
     static_assert(sizeof(ept_pdt_entry_t::storage) == sizeof(ept_pdt_entry_t::semantics));
 
-    struct alignas(4_KiB_uz) ept_pdt_t {
-        ept_pdt_entry_t entries[4_KiB_uz / sizeof(ept_pdt_entry_t)];
+    struct alignas(4_Kiuz) ept_pdt_t {
+        ept_pdt_entry_t entries[4_Kiuz / sizeof(ept_pdt_entry_t)];
 
         static constexpr size_t length() noexcept {
             return std::extent_v<decltype(ept_pdt_t::entries)>;
         }
     };
 
-    static_assert(alignof(ept_pdt_t) == 4_KiB_uz);
-    static_assert(sizeof(ept_pdt_t) == 4_KiB_uz);
+    static_assert(alignof(ept_pdt_t) == 4_Kiuz);
+    static_assert(sizeof(ept_pdt_t) == 4_Kiuz);
 
     // Defined in
     // [*] Volume 3 (3A, 3B, 3C & 3D): System Programming Guide
@@ -234,16 +234,16 @@ namespace siren::x86 {
     static_assert(sizeof(ept_pt_entry_t::storage) == 8);
     static_assert(sizeof(ept_pt_entry_t::storage) == sizeof(ept_pt_entry_t::semantics));
 
-    struct alignas(4_KiB_uz) ept_pt_t {
-        ept_pt_entry_t entries[4_KiB_uz / sizeof(ept_pt_entry_t)];
+    struct alignas(4_Kiuz) ept_pt_t {
+        ept_pt_entry_t entries[4_Kiuz / sizeof(ept_pt_entry_t)];
 
         static constexpr size_t length() noexcept {
             return std::extent_v<decltype(ept_pt_t::entries)>;
         }
     };
 
-    static_assert(alignof(ept_pt_t) == 4_KiB_uz);
-    static_assert(sizeof(ept_pt_t) == 4_KiB_uz);
+    static_assert(alignof(ept_pt_t) == 4_Kiuz);
+    static_assert(sizeof(ept_pt_t) == 4_Kiuz);
 
     using host_paddr_t = paddr_t;
     using guest_paddr_t = paddr_t;

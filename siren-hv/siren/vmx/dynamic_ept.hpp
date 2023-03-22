@@ -102,8 +102,8 @@ namespace siren::vmx {
             };
         };
 
-        static_assert(sizeof(node_data) == 4_KiB_uz);
-        static_assert(alignof(node_data) == 4_KiB_uz);
+        static_assert(sizeof(node_data) == 4_Kiuz);
+        static_assert(alignof(node_data) == 4_Kiuz);
 
         struct node {
             node* parent;
