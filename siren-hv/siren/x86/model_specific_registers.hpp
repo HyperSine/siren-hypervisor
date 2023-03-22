@@ -102,7 +102,7 @@ namespace siren::x86 {
     // Actual Performance Clock Counter (R/Write to clear)
     constexpr uint32_t IA32_APERF = 0x000000E8;
 
-    // MTRR Capability (R/O) See Section 11.11.2.1, "IA32_MTRR_DEF_TYPE MSR."
+    // MTRR Capability (R/O) See Section 11.11.1, "MTRR Feature Identification"
     constexpr uint32_t IA32_MTRRCAP = 0x000000FE;
 
     // Enumeration of Architectural Features (R/O)
