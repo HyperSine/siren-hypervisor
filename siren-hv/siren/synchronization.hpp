@@ -25,19 +25,19 @@ namespace siren {
 
         [[nodiscard]]
         bool is_unlocked() const noexcept {
-            return m_state == state_unlocked_v;
+            return m_state.load(std::memory_order_relaxed) == state_unlocked_v;
         }
 
         [[nodiscard]]
         bool try_lock() noexcept {
-            int state = m_state.load(std::memory_order_acquire);
+            int state = m_state.load(std::memory_order_relaxed);
             int expected = state_unlocked_v;
             return state == expected && m_state.compare_exchange_weak(expected, -1, std::memory_order_acquire);
         }
 
         [[nodiscard]]
         bool try_lock_shared() noexcept {
-            int state = m_state.load(std::memory_order_acquire);
+            int state = m_state.load(std::memory_order_relaxed);
             int next_state = state + 1;
             return state < next_state && state >= state_unlocked_v && m_state.compare_exchange_weak(state, next_state, std::memory_order_acquire);
         }
@@ -93,14 +93,14 @@ namespace siren {
         void call_once(CallableTy&& fn, ArgsTy&&... args) noexcept(std::is_nothrow_invocable_v<CallableTy, ArgsTy&&...>) {
             int expected = state_not_executed_v;
 
-            if (m_state == state_not_executed_v && m_state.compare_exchange_strong(expected, state_executing_v, std::memory_order_acquire)) [[unlikely]] {
+            if (m_state.compare_exchange_strong(expected, state_executing_v, std::memory_order_acquire)) [[unlikely]] {
                 fn(std::forward<ArgsTy>(args)...);
                 m_state.store(state_already_executed_v, std::memory_order_release);
             }
 
             constexpr unsigned max_wait = 65536;    // inspired by https://rayanfam.com/topics/hypervisor-from-scratch-part-8/#designing-a-spinlock
 
-            for (unsigned wait = 0; m_state != state_already_executed_v;) [[unlikely]] {
+            for (unsigned wait = 0; m_state.load(std::memory_order_relaxed) != state_already_executed_v;) [[likely]] {
                 yield_cpu(wait);
 
                 // Don't call "pause" too many times. If the wait becomes too big,
