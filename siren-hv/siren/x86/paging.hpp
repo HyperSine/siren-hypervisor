@@ -90,59 +90,25 @@ namespace siren::x86 {
     using on_2MiB_page_t = std::ratio<2_Miuz>;
     using on_1GiB_page_t = std::ratio<1_Giuz>;
 
-    template<one_of<laddr32_t, laddr64_t> Ty>
+    template<size_t PageSize, unsigned_integral_least<32> Ty>
     [[nodiscard]]
-    constexpr Ty address_to_pfn(Ty address, on_4KiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(4_Kiuz);
+    constexpr Ty address_to_pfn(Ty address) noexcept {
+        static_assert(std::has_single_bit(PageSize), "The size of a page must be non-zero and a power of 2.");
+        static_assert(PageSize - 1 <= std::numeric_limits<Ty>::max(), "Too big page.");
+
+        constexpr uint32_t shift = std::countr_zero(PageSize);
+
         return static_cast<Ty>(address >> shift);
     }
 
-    template<one_of<laddr32_t> Ty>
+    template<size_t PageSize, unsigned_integral_least<32> Ty>
     [[nodiscard]]
-    constexpr Ty address_to_pfn(Ty address, on_4MiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(4_Miuz);
-        return static_cast<Ty>(address >> shift);
-    }
+    constexpr Ty pfn_to_address(Ty pfn) noexcept {
+        static_assert(std::has_single_bit(PageSize), "The size of a page must be non-zero and a power of 2.");
+        static_assert(PageSize - 1 <= std::numeric_limits<Ty>::max(), "Too big page.");
 
-    template<one_of<laddr64_t> Ty>
-    [[nodiscard]]
-    constexpr Ty address_to_pfn(Ty address, on_2MiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(2_Miuz);
-        return static_cast<Ty>(address >> shift);
-    }
+        constexpr uint32_t shift = std::countr_zero(PageSize);
 
-    template<one_of<laddr64_t> Ty>
-    [[nodiscard]]
-    constexpr Ty address_to_pfn(Ty address, on_1GiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(1_Giuz);
-        return static_cast<Ty>(address >> shift);
-    }
-
-    template<one_of<laddr32_t, laddr64_t> Ty>
-    [[nodiscard]]
-    constexpr Ty pfn_to_address(Ty pfn, on_4KiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(4_Kiuz);
-        return static_cast<Ty>(pfn << shift);
-    }
-
-    template<one_of<laddr32_t> Ty>
-    [[nodiscard]]
-    constexpr Ty pfn_to_address(Ty pfn, on_4MiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(4_Miuz);
-        return static_cast<Ty>(pfn << shift);
-    }
-
-    template<one_of<laddr64_t> Ty>
-    [[nodiscard]]
-    constexpr Ty pfn_to_address(Ty pfn, on_2MiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(2_Miuz);
-        return static_cast<Ty>(pfn << shift);
-    }
-
-    template<one_of<laddr64_t> Ty>
-    [[nodiscard]]
-    constexpr Ty pfn_to_address(Ty pfn, on_1GiB_page_t) noexcept {
-        constexpr uint32_t shift = std::countr_zero(1_Giuz);
         return static_cast<Ty>(pfn << shift);
     }
 
@@ -155,20 +121,24 @@ namespace siren::x86 {
     }
 
     template<int Level, unsigned_integral_exact<32> Ty>
-        requires(1 <= Level && Level <= 2)    // 32-bits paging only has Page-Map-Level 1 ~ 2
     [[nodiscard]]
-    constexpr uint32_t index_of_pml(Ty address) noexcept {
+    constexpr uint32_t pml_index(Ty address) noexcept {
+        static_assert(1 <= Level && Level <= 2, "32-bits paging has only Page-Map-Level 1 ~ 2.");
+
         constexpr int shift = 12 + (Level - 1) * 10;
         constexpr uint32_t mask = (1u << 10u) - 1u;
+
         return static_cast<uint32_t>(address >> shift) & mask;
     }
 
     template<int Level, unsigned_integral_exact<64> Ty>
-        requires(1 <= Level && Level <= 5)    // 64-bits paging has 5 Page-Map-Levels at most
     [[nodiscard]]
-    constexpr uint32_t index_of_pml(Ty address) noexcept {
+    constexpr uint32_t pml_index(Ty address) noexcept {
+        static_assert(1 <= Level && Level <= 5, "64-bits paging has only Page-Map-Level 1 ~ 5.");
+
         constexpr int shift = 12 + (Level - 1) * 9;
         constexpr uint32_t mask = (1u << 9u) - 1u;
+
         return static_cast<uint32_t>(address >> shift) & mask;
     }
 

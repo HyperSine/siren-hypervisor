@@ -188,11 +188,11 @@ namespace siren::vmx {
             template<int Level>
             void set_page_entry(uint32_t index, x86::paddr_t page_base) {
                 if constexpr (Level == 1) {
-                    table->pml1.entries[index].semantics.page_physical_address = x86::address_to_pfn(page_base, x86::on_4KiB_page_t{});
+                    table->pml1.entries[index].semantics.page_physical_address = x86::address_to_pfn<4_Kiuz>(page_base);
                 } else if constexpr (Level == 2) {
-                    table->pml2.entries[index].semantics.for_2MiB_page.page_physical_address = x86::address_to_pfn(page_base, x86::on_4KiB_page_t{});
+                    table->pml2.entries[index].semantics.for_2MiB_page.page_physical_address = x86::address_to_pfn<4_Kiuz>(page_base);
                 } else if constexpr (Level == 3) {
-                    table->pml3.entries[index].semantics.for_1GiB_page.page_physical_address = x86::address_to_pfn(page_base, x86::on_4KiB_page_t{});
+                    table->pml3.entries[index].semantics.for_1GiB_page.page_physical_address = x86::address_to_pfn<4_Kiuz>(page_base);
                 }
             }
 
