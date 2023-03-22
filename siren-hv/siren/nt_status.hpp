@@ -125,6 +125,11 @@ namespace siren {
     static_assert(std::is_aggregate_v<nt_status>);
 
     constexpr nt_status nt_status_success_v = { 0x00000000u };
+    constexpr nt_status nt_status_unsuccessful_v = { 0xc0000001u };
     constexpr nt_status nt_status_not_implemented_v = { 0xc0000002u };
     constexpr nt_status nt_status_invalid_parameter_v = { 0xc000000du };
+    constexpr nt_status nt_status_not_supported_v = { 0xc00000bbu };
+    constexpr nt_status nt_status_insufficient_resources_v = { 0xc000009au };
+    constexpr nt_status nt_status_invalid_address_v = { 0xc0000141u };
+    constexpr nt_status nt_status_not_found_v = { 0xc0000225u };
 }
