@@ -182,6 +182,10 @@ namespace siren {
         }
     };
 
+    inline paged_allocator<std::byte> paged_pool;
+    inline npaged_allocator<std::byte> npaged_pool;
+    inline contiguous_allocator<std::byte> contiguous_pool;
+
     template<non_dimensional Ty, same_after<std::remove_cvref> AllocatorTy, typename... ArgTys>
         requires std::is_constructible_v<Ty, ArgTys&&...>
     [[nodiscard]]
