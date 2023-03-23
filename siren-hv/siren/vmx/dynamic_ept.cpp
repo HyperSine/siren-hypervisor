@@ -11,7 +11,7 @@ namespace siren::vmx {
         entry.read_access = read_access;
         entry.write_access = write_access;
         entry.execute_access = execute_access;
-        // entry.always_zero = always_zero;
+        entry.always_zero = 0;
         entry.accessed_flag = accessed_flag;
         entry.user_mode_execute_access = user_mode_execute_access;
     }
@@ -20,7 +20,7 @@ namespace siren::vmx {
         entry.read_access = read_access;
         entry.write_access = write_access;
         entry.execute_access = execute_access;
-        // entry.always_zero = always_zero;
+        entry.always_zero = 0;
         entry.accessed_flag = accessed_flag;
         entry.user_mode_execute_access = user_mode_execute_access;
     }
@@ -55,7 +55,7 @@ namespace siren::vmx {
         entry.execute_access = execute_access;
         entry.memory_type = memory_type;
         entry.ignore_pat_memory_type = ignore_pat_memory_type;
-        // entry.always_one = always_one;
+        entry.always_one = 1;
         entry.accessed_flag = accessed_flag;
         entry.dirty_flag = dirty_flag;
         entry.user_mode_execute_access = user_mode_execute_access;
@@ -71,7 +71,7 @@ namespace siren::vmx {
         entry.execute_access = execute_access;
         entry.memory_type = memory_type;
         entry.ignore_pat_memory_type = ignore_pat_memory_type;
-        // entry.always_one = always_one;
+        entry.always_one = 1;
         entry.accessed_flag = accessed_flag;
         entry.dirty_flag = dirty_flag;
         entry.user_mode_execute_access = user_mode_execute_access;
@@ -632,6 +632,8 @@ namespace siren::vmx {
 
     _IRQL_requires_max_(DISPATCH_LEVEL)
     expected<dynamic_ept::node*, nt_status> dynamic_ept::node_new() noexcept {
+        KdPrint(("siren-hv: siren::dynamic_ept::node_new()\n"));
+
         auto unique_node = allocate_unique<node>(npaged_pool);
         if (!unique_node.has_value()) {
             return unexpected{ unique_node.error() };
@@ -664,6 +666,8 @@ namespace siren::vmx {
             nd->forward = nd;
             nd->backward = nd;
             nd->children = nullptr;
+
+            memset(nd->table, 0, sizeof(node_data));
 
             nd->table_level = 0;
             nd->table_index = 0;
