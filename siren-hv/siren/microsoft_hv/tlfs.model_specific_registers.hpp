@@ -145,7 +145,7 @@ namespace siren::x86 {
         union {
             uint64_t storage;
             struct {
-                uint64_t hypercall_page_enable : 1;
+                uint64_t enable : 1;
                 uint64_t locked : 1;
                 uint64_t reserved : 10;
                 uint64_t hypercall_pfn : 52;
