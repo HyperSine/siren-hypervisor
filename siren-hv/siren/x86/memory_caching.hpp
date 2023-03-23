@@ -32,11 +32,11 @@ namespace siren::x86 {
 
     public:
         template<size_t PageSize>
-            requires (PageSize == 4_Kiuz || PageSize == 2_Miuz || PageSize == 1_Giuz)
         [[nodiscard]]
         static memory_type_t propose_for_page(paddr_t base) noexcept {
-            constexpr paddr_t mask = PageSize - 1;
-            return propose({ .base = base, .mask = mask });
+            static_assert(std::has_single_bit(PageSize), "The size of a page must be non-zero and a power of 2.");
+            static_assert(PageSize - 1 <= std::numeric_limits<paddr_t>::max(), "Too big page.");
+            return propose({ .base = base, .mask = ~static_cast<paddr_t>(PageSize - 1) });
         }
 
         template<typename Ty>
@@ -46,6 +46,8 @@ namespace siren::x86 {
         }
     };
 
+    static_assert(sizeof(memory_type_t) == sizeof(uint8_t));
+    static_assert(alignof(memory_type_t) == alignof(uint8_t));
     static_assert(std::is_aggregate_v<memory_type_t>);
 
     constexpr memory_type_t memory_type_uncacheable_v = { 0 };

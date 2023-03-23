@@ -114,6 +114,8 @@ namespace siren::x86 {
                     }
                 }
             }
+
+            return memory_type_reserved_v;
         }
 
         auto memory_type_default = memory_type_t::cast_from(ia32_mtrr_def_type.semantics.default_memory_type);
