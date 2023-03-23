@@ -22,47 +22,47 @@
     <ClCompile Include="driver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="siren\siren_global.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="siren\siren_new.cpp">
+    <ClCompile Include="driver_irp_handler.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="siren\multiprocessor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="siren\address_space.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="siren\microsoft_hv\tlfs.hypercalls.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="driver_irp_handler.cpp">
+    <ClCompile Include="siren\debugging.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="siren\memory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="siren\vmx\mshv_hypervisor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="siren\vmx\mshv_vmexit_handler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="siren\x86\memory_caching.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="siren\x86\paging.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="siren\hypervisors\vmx\hooking_database.cpp">
+    <ClCompile Include="siren\vmx\dynamic_ept.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="siren\lookaside_pool.cpp">
+    <ClCompile Include="siren\vmx\mshv_virtual_cpu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="siren\spin_lock.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="siren\hypervisors\vmx\dynamic_ept.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="siren\memory_caching.cpp">
+    <ClCompile Include="siren\vmx\msr_bitmap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="siren\siren_global.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="siren\siren_new.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="siren\x86\cpuid.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -75,9 +75,6 @@
     <ClInclude Include="siren\x86\flags_register.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="siren\memory_caching.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="siren\x86\paging.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -87,31 +84,10 @@
     <ClInclude Include="siren\x86\segmentation.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="siren\multiprocessor.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="siren\spin_lock.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="siren\x86\intel_ept.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="siren\x86\intel_vmx.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="siren\microsoft_hv\tlfs.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="siren\microsoft_hv\tlfs.cpuid.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="siren\microsoft_hv\tlfs.model_specific_registers.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="siren\microsoft_hv\tlfs.hypercalls.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="siren\hypervisors\hypervisor.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="driver.hpp">
@@ -123,28 +99,82 @@
     <ClInclude Include="driver_irp_handler.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="siren\hypervisors\vmx\siren_hypercalls.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="siren\hypervisors\vmx\dynamic_ept.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="siren\hypervisors\vmx\guest_state.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="siren\x86\interrupts_and_excpetions.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="siren\x86\simd_registers.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="siren\hypervisors\vmx\hooking_database.hpp">
+    <ClInclude Include="siren\literals.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="siren\siren_memory.hpp">
+    <ClInclude Include="siren\utility.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="siren\lookaside_pool.hpp">
+    <ClInclude Include="siren\multiprocessor.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\address_space.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\microsoft_hv\tlfs.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\microsoft_hv\tlfs.cpuid.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\microsoft_hv\tlfs.hypercalls.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\microsoft_hv\tlfs.model_specific_registers.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\hypervisor.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\concepts.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\debugging.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\memory.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\synchronization.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\vmx\guest_state.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\irql_annotations.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\vmx\siren_hypercalls.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\nt_status.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\vmx\mshv_hypervisor.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\vmx\mshv_vmexit_handler.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\x86\memory_caching.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\vmx\dynamic_ept.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\vmx\mshv_virtual_cpu.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\virtual_cpu.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="siren\vmx\msr_bitmap.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -152,8 +182,14 @@
     <MASM Include="siren\x86\segmentation.asm">
       <Filter>Source Files</Filter>
     </MASM>
-    <MASM Include="siren\hypervisors\vmx\siren_hypercalls.asm">
+    <MASM Include="siren\vmx\siren_hypercalls.asm">
       <Filter>Source Files</Filter>
     </MASM>
+    <MASM Include="siren\vmx\mshv_vmexit_handler.masm.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="siren\expected.hpp" />
   </ItemGroup>
 </Project>

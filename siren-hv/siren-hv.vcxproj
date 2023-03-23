@@ -63,8 +63,9 @@
     </DriverSign>
     <ClCompile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions);NTDDI_VERSION=0x0A00000B</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)\%(RelativeDir)</ObjectFileName>
+      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -73,8 +74,9 @@
     </DriverSign>
     <ClCompile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions);NTDDI_VERSION=0x0A00000B</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)\%(RelativeDir)</ObjectFileName>
+      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -83,52 +85,66 @@
   <ItemGroup>
     <ClCompile Include="driver.cpp" />
     <ClCompile Include="driver_irp_handler.cpp" />
-    <ClCompile Include="siren\hypervisors\vmx\dynamic_ept.cpp" />
-    <ClCompile Include="siren\lookaside_pool.cpp" />
-    <ClCompile Include="siren\hypervisors\vmx\hooking_database.cpp" />
-    <ClCompile Include="siren\spin_lock.cpp" />
-    <ClCompile Include="siren\memory_caching.cpp" />
-    <ClCompile Include="siren\x86\paging.cpp" />
-    <ClCompile Include="siren\siren_new.cpp" />
-    <ClCompile Include="siren\siren_global.cpp" />
+    <ClCompile Include="siren\address_space.cpp" />
+    <ClCompile Include="siren\debugging.cpp" />
     <ClCompile Include="siren\microsoft_hv\tlfs.hypercalls.cpp" />
     <ClCompile Include="siren\multiprocessor.cpp" />
+    <ClCompile Include="siren\memory.cpp" />
+    <ClCompile Include="siren\vmx\dynamic_ept.cpp" />
+    <ClCompile Include="siren\vmx\mshv_hypervisor.cpp" />
+    <ClCompile Include="siren\vmx\mshv_virtual_cpu.cpp" />
+    <ClCompile Include="siren\vmx\mshv_vmexit_handler.cpp" />
+    <ClCompile Include="siren\vmx\msr_bitmap.cpp" />
+    <ClCompile Include="siren\x86\memory_caching.cpp" />
+    <ClCompile Include="siren\x86\paging.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="siren\nt_status.hpp" />
+    <ClInclude Include="siren\debugging.hpp" />
+    <ClInclude Include="siren\address_space.hpp" />
+    <ClInclude Include="siren\concepts.hpp" />
+    <ClInclude Include="siren\hypervisor.hpp" />
+    <ClInclude Include="siren\irql_annotations.hpp" />
+    <ClInclude Include="siren\literals.hpp" />
     <ClInclude Include="driver.hpp" />
     <ClInclude Include="driver_ioctl_code.hpp" />
     <ClInclude Include="driver_irp_handler.hpp" />
-    <ClInclude Include="siren\lookaside_pool.hpp" />
-    <ClInclude Include="siren\hypervisors\vmx\guest_state.hpp" />
-    <ClInclude Include="siren\hypervisors\vmx\hooking_database.hpp" />
-    <ClInclude Include="siren\hypervisors\vmx\dynamic_ept.hpp" />
-    <ClInclude Include="siren\hypervisors\vmx\siren_hypercalls.hpp" />
-    <ClInclude Include="siren\siren_new.hpp" />
-    <ClInclude Include="siren\siren_memory.hpp" />
-    <ClInclude Include="siren\siren_global.hpp" />
+    <ClInclude Include="siren\synchronization.hpp" />
+    <ClInclude Include="siren\memory.hpp" />
+    <ClInclude Include="siren\microsoft_hv\tlfs.cpuid.hpp" />
+    <ClInclude Include="siren\microsoft_hv\tlfs.hpp" />
+    <ClInclude Include="siren\microsoft_hv\tlfs.hypercalls.hpp" />
+    <ClInclude Include="siren\microsoft_hv\tlfs.model_specific_registers.hpp" />
+    <ClInclude Include="siren\multiprocessor.hpp" />
+    <ClInclude Include="siren\utility.hpp" />
+    <ClInclude Include="siren\virtual_cpu.hpp" />
+    <ClInclude Include="siren\vmx\dynamic_ept.hpp" />
+    <ClInclude Include="siren\vmx\guest_state.hpp" />
+    <ClInclude Include="siren\vmx\mshv_hypervisor.hpp" />
+    <ClInclude Include="siren\vmx\mshv_virtual_cpu.hpp" />
+    <ClInclude Include="siren\vmx\mshv_vmexit_handler.hpp" />
+    <ClInclude Include="siren\vmx\msr_bitmap.hpp" />
+    <ClInclude Include="siren\vmx\siren_hypercalls.hpp" />
     <ClInclude Include="siren\x86\control_registers.hpp" />
     <ClInclude Include="siren\x86\cpuid.hpp" />
     <ClInclude Include="siren\x86\debug_registers.hpp" />
     <ClInclude Include="siren\x86\flags_register.hpp" />
     <ClInclude Include="siren\x86\interrupts_and_excpetions.hpp" />
-    <ClInclude Include="siren\memory_caching.hpp" />
+    <ClInclude Include="siren\x86\memory_caching.hpp" />
     <ClInclude Include="siren\x86\paging.hpp" />
     <ClInclude Include="siren\x86\model_specific_registers.hpp" />
-    <ClInclude Include="siren\multiprocessor.hpp" />
     <ClInclude Include="siren\x86\simd_registers.hpp" />
-    <ClInclude Include="siren\spin_lock.hpp" />
     <ClInclude Include="siren\x86\segmentation.hpp" />
-    <ClInclude Include="siren\hypervisors\hypervisor.hpp" />
     <ClInclude Include="siren\x86\intel_ept.hpp" />
     <ClInclude Include="siren\x86\intel_vmx.hpp" />
-    <ClInclude Include="siren\microsoft_hv\tlfs.cpuid.hpp" />
-    <ClInclude Include="siren\microsoft_hv\tlfs.hpp" />
-    <ClInclude Include="siren\microsoft_hv\tlfs.hypercalls.hpp" />
-    <ClInclude Include="siren\microsoft_hv\tlfs.model_specific_registers.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="siren\hypervisors\vmx\siren_hypercalls.asm" />
+    <MASM Include="siren\vmx\mshv_vmexit_handler.masm.asm" />
+    <MASM Include="siren\vmx\siren_hypercalls.asm" />
     <MASM Include="siren\x86\segmentation.asm" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="siren\expected.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
