@@ -10,7 +10,7 @@ namespace siren {
     [[noreturn]]
     void invoke_debugger_noreturn() noexcept {
         DbgBreakPoint();
-        unreachable();
+        std::unreachable();
     }
 
     [[noreturn]]
