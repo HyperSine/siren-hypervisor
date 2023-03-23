@@ -860,7 +860,7 @@ namespace siren::x86 {
             uint64_t storage;
             struct {
                 uint64_t memory_type : 3;
-                uint64_t page_walk_length_minus_one : 3;
+                uint64_t page_walk_length : 3;
                 uint64_t enable_accessed_and_dirty_flag : 1;
                 uint64_t supervisor_shadow_stack_pages_access_rights_enforcement : 1;
                 uint64_t reserved0 : 4;
@@ -1523,100 +1523,10 @@ namespace siren::x86 {
 #undef SIREN_VMCSF_SIZE_GUARD
 
     struct alignas(4_Kiuz) vmx_msr_bitmap_t {
-        struct state_flags_t {
-            uint8_t activate_read : 1;
-            uint8_t activate_write : 1;
-            uint8_t read : 1;
-            uint8_t write : 1;
-        };
-
         uint8_t read_low[1024];
         uint8_t read_high[1024];
         uint8_t write_low[1024];
         uint8_t write_high[1024];
-
-        static constexpr closed_interval_t low_msr_address_interval_v = { 0x00000000ui32, 0x00001fffui32 };
-        static constexpr closed_interval_t high_msr_address_interval_v = { 0xc0000000ui32, 0xc0001fffui32 };
-
-        [[nodiscard]]
-        expected<state_flags_t, nt_status> get(uint32_t msr_address) const noexcept {
-            if (low_msr_address_interval_v.contains(msr_address)) {
-                uint32_t delta = msr_address - low_msr_address_interval_v.min;
-
-                auto pos = delta / 8u;
-                auto mask = static_cast<uint8_t>(1u << (delta % 8u));
-
-                return state_flags_t{
-                    .activate_read = 1,
-                    .activate_write = 1,
-                    .read = (read_low[pos] & mask) != 0 ? uint8_t{ 1 } : uint8_t{ 0 },
-                    .write = (write_low[pos] & mask) != 0 ? uint8_t{ 1 } : uint8_t{ 0 },
-                };
-            } else if (high_msr_address_interval_v.contains(msr_address)) {
-                uint32_t delta = msr_address - high_msr_address_interval_v.min;
-
-                auto pos = delta / 8u;
-                auto mask = static_cast<uint8_t>(1u << (delta % 8u));
-
-                return state_flags_t{
-                    .activate_read = 1,
-                    .activate_write = 1,
-                    .read = (read_high[pos] & mask) != 0 ? uint8_t{ 1 } : uint8_t{ 0 },
-                    .write = (write_high[pos] & mask) != 0 ? uint8_t{ 1 } : uint8_t{ 0 },
-                };
-            } else {
-                return state_flags_t{};
-            }
-        }
-
-        [[nodiscard]]
-        expected<void, nt_status> set(uint32_t msr_address, state_flags_t flags) noexcept {
-            if (low_msr_address_interval_v.contains(msr_address)) {
-                uint32_t delta = msr_address - low_msr_address_interval_v.min;
-
-                auto pos = delta / 8u;
-                auto mask = static_cast<uint8_t>(1u << (delta % 8u));
-
-                if (flags.activate_read) {
-                    uint8_t current_read = (read_low[pos] & mask) != 0 ? 1 : 0;
-                    if (current_read != flags.read) {
-                        read_low[pos] ^= mask;
-                    }
-                }
-
-                if (flags.activate_write) {
-                    uint8_t current_write = (write_low[pos] & mask) != 0 ? 1 : 0;
-                    if (current_write != flags.write) {
-                        write_low[pos] ^= mask;
-                    }
-                }
-
-                return {};
-            } else if (high_msr_address_interval_v.contains(msr_address)) {
-                uint32_t delta = msr_address - high_msr_address_interval_v.min;
-
-                auto pos = delta / 8u;
-                auto mask = static_cast<uint8_t>(1u << (delta % 8u));
-
-                if (flags.activate_read) {
-                    uint8_t current_read = (read_high[pos] & mask) != 0 ? 1 : 0;
-                    if (current_read != flags.read) {
-                        read_high[pos] ^= mask;
-                    }
-                }
-
-                if (flags.activate_write) {
-                    uint8_t current_write = (write_high[pos] & mask) != 0 ? 1 : 0;
-                    if (current_write != flags.write) {
-                        write_high[pos] ^= mask;
-                    }
-                }
-
-                return {};
-            } else {
-                return unexpected{ nt_status_invalid_parameter_v };
-            }
-        }
     };
 
     static_assert(sizeof(vmx_msr_bitmap_t) == 4_Kiuz);
